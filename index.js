@@ -24,11 +24,11 @@ const mssqlConfig = {
 
 // ----- MySQL conn -----
 const mysqlConfig = {
-  host: process.env.MYSQL_HOST,
-  user: process.env.MYSQL_USER,
-  password: process.env.MYSQL_PASS,
-  database: process.env.MYSQL_DB,
-  port: Number(process.env.MYSQL_PORT || 3306)
+  host: process.env.MYSQL_HOST1,
+  user: process.env.MYSQL_USER1,
+  password: process.env.MYSQL_PASS1,
+  database: process.env.MYSQL_DB1,
+  port: Number(process.env.MYSQL_PORT1 || 3306)
 };
 
 const ACOLCHADO_DIAS = Number(process.env.ACOLCHADO_DIAS || 50);
@@ -56,6 +56,56 @@ function chunk(arr, size) {
   const out = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
+}
+
+// Función para convertir valores money a números para MySQL
+// Esta versión preserva los valores originales sin limitarlos
+function safeMoneyValue(value, fieldName = 'desconocido') {
+  try {
+    // Caso especial: si es null o undefined
+    if (value === null || value === undefined) {
+      return null; // Mantener null para preservar la semántica original
+    }
+    
+    // Si es un objeto (como en algunos resultados de SQL Server)
+    if (typeof value === 'object') {
+      console.log(`Campo ${fieldName}: Valor es un objeto, intentando convertir:`, value);
+      // Intentar extraer un valor numérico si existe
+      if (value.value !== undefined) {
+        value = value.value;
+      } else {
+        console.log(`Campo ${fieldName}: No se pudo extraer valor del objeto, usando null`);
+        return null;
+      }
+    }
+    
+    // Convertir a número si es string
+    let numValue;
+    if (typeof value === 'string') {
+      // Eliminar caracteres no numéricos excepto punto decimal y signo negativo
+      const cleanValue = value.replace(/[^\d.-]/g, '');
+      numValue = parseFloat(cleanValue);
+    } else {
+      numValue = Number(value);
+    }
+    
+    // Verificar si es un número válido
+    if (isNaN(numValue)) {
+      console.log(`Campo ${fieldName}: Valor no numérico: "${value}", usando null`);
+      return null;
+    }
+    
+    // Registrar valores extremadamente grandes pero no modificarlos
+    if (Math.abs(numValue) > 1000000) { // Si es mayor a un millón
+      console.log(`Campo ${fieldName}: Valor monetario extremo detectado: ${numValue}, manteniendo valor original`);
+    }
+    
+    // Devolver el valor original sin modificar
+    return numValue;
+  } catch (err) {
+    console.error(`Error procesando valor monetario para ${fieldName}:`, err);
+    return null; // Valor por defecto en caso de error
+  }
 }
 
 // Parsear OkPacket para obtener Records / Duplicates / Warnings
@@ -107,6 +157,7 @@ SELECT
   r.id_referencias,
   p.Pedimento,
   r.Operacion,
+  re.regimen            AS Clave_pedimento,
   a_origen.descripcion  AS a_despacho,
   a_llegada.descripcion AS a_llegada,
   c_i.nombre            AS C_Imp_Exp,
@@ -136,6 +187,7 @@ SELECT
   MAX(p.TOTALIMPUESTOS) AS Total_Imp
 FROM referencias r
 INNER JOIN PedimentosEncabezado p ON p.id_referencia = r.id_referencias
+LEFT JOIN regimen re ON re.id_regimen = r.id_regimen
 LEFT JOIN aduana a_origen ON a_origen.id_Aduana = r.id_aduana
 LEFT JOIN aduana a_llegada ON a_llegada.id_Aduana = r.Id_AduanaLlegada
 LEFT JOIN clientes c_i ON c_i.id_cliente = r.id_cliente
@@ -146,7 +198,7 @@ LEFT JOIN BitacoraEventosImportacion b ON b.Referencia = r.id_referencias
 WHERE r.FechaApertura > @fApertura
   AND r.Cancelada = 0
 GROUP BY
-  r.NumeroDeReferencia, r.id_referencias, p.Pedimento, r.Operacion,
+  r.NumeroDeReferencia, r.id_referencias, p.Pedimento, r.Operacion, re.regimen,
   a_origen.descripcion, a_llegada.descripcion, c_i.nombre, c_f.nombre,
   aa.nombre, u.nombre, r.FechaApertura
 `;
@@ -170,7 +222,7 @@ WHERE r.FechaApertura > @fApertura
 // ---------- UPSERTS MySQL ----------
 const UP_GENERAL = `
 INSERT INTO general (
-  NumeroDeReferencia, id_referencias, Pedimento, Operacion, a_despacho, a_llegada,
+  NumeroDeReferencia, id_referencias, Pedimento, Operacion, Clave_pedimento, a_despacho, a_llegada,
   C_Imp_Exp, Facturar_a, Agente_Aduanal, Ejecutivo, APERTURA,
   LLEGADA_MERCAN, ENTREGA_CLASIFICA, INICIO_CLASIFICA, TERMINO_CLASIFICA,
   INICIO_GLOSA, TERMINO_GLOSA, ENTREGA_GLOSA, PAGO_PEDIMENTO, DESPACHO_MERCAN,
@@ -181,6 +233,7 @@ ON DUPLICATE KEY UPDATE
   NumeroDeReferencia=VALUES(NumeroDeReferencia),
   Pedimento=VALUES(Pedimento),
   Operacion=VALUES(Operacion),
+  Clave_pedimento=VALUES(Clave_pedimento),
   a_despacho=VALUES(a_despacho),
   a_llegada=VALUES(a_llegada),
   C_Imp_Exp=VALUES(C_Imp_Exp),
@@ -262,6 +315,7 @@ ON DUPLICATE KEY UPDATE
       r.id_referencias,
       r.Pedimento,
       r.Operacion,
+      r.Clave_pedimento,
       r.a_despacho,
       r.a_llegada,
       r.C_Imp_Exp,
@@ -285,10 +339,10 @@ ON DUPLICATE KEY UPDATE
       r.INICIO_CAPTURA,
       r.TERMINO_CAPTURA,
       r.PRIMER_RECONOCIMIENTO,
-      r.Total_Adv,
-      r.Total_DTA,
-      r.Total_IVA,
-      r.Total_Imp
+      safeMoneyValue(r.Total_Adv, 'Total_Adv'),
+      safeMoneyValue(r.Total_DTA, 'Total_DTA'),
+      safeMoneyValue(r.Total_IVA, 'Total_IVA'),
+      safeMoneyValue(r.Total_Imp, 'Total_Imp')
     ]));
     const preparedGeneral = valsGeneral.length;
 
@@ -299,8 +353,8 @@ ON DUPLICATE KEY UPDATE
       r.Fecha_c,
       (r.Incoterm ?? r.INCOTER ?? null),
       r.Moneda,
-      r.Valor_ME,
-      r.Valor_USD
+      safeMoneyValue(r.Valor_ME, 'Valor_ME'),
+      safeMoneyValue(r.Valor_USD, 'Valor_USD')
     ]));
     const preparedFacturas = valsFacturas.length;
 

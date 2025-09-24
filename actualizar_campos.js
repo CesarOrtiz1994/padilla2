@@ -1,4 +1,4 @@
-// actualizar_campos.js
+// actualizar_campos.js - Actualización de Clave_pedimento
 require('dotenv').config();
 const sql = require('mssql');
 const mysql = require('mysql2/promise');
@@ -24,26 +24,22 @@ const mssqlConfig = {
 
 // ----- MySQL conn -----
 const mysqlConfig = {
-  host: process.env.MYSQL_HOST,
-  user: process.env.MYSQL_USER,
-  password: process.env.MYSQL_PASS,
-  database: process.env.MYSQL_DB,
-  port: Number(process.env.MYSQL_PORT || 3306)
+  host: process.env.MYSQL_HOST1,
+  user: process.env.MYSQL_USER1,
+  password: process.env.MYSQL_PASS1,
+  database: process.env.MYSQL_DB1,
+  port: Number(process.env.MYSQL_PORT1 || 3306)
 };
 
-// ---------- Query para obtener los eventos ----------
-const Q_EVENTOS = `
+// ---------- Query para obtener Clave_pedimento ----------
+const Q_REGIMEN = `
 SELECT
   r.id_referencias,
-  MAX(CASE WHEN b.IdEvento = 22 THEN b.FechaHoraCapturada END) AS ENTREGA_GLOSA,
-  MAX(CASE WHEN b.IdEvento = 26 THEN b.FechaHoraCapturada END) AS ENTREGA_CAPTURA,
-  MAX(CASE WHEN b.IdEvento = 33 THEN b.FechaHoraCapturada END) AS INICIO_CAPTURA,
-  MAX(CASE WHEN b.IdEvento = 42 THEN b.FechaHoraCapturada END) AS TERMINO_CAPTURA,
-  MAX(CASE WHEN b.IdEvento = 36 THEN b.FechaHoraCapturada END) AS PRIMER_RECONOCIMIENTO
+  re.regimen AS Clave_pedimento
 FROM referencias r
-LEFT JOIN BitacoraEventosImportacion b ON b.Referencia = r.id_referencias
+LEFT JOIN regimen re ON re.id_regimen = r.id_regimen
 WHERE r.Cancelada = 0
-GROUP BY r.id_referencias
+  AND re.regimen IS NOT NULL
 `;
 
 // ---------- Función para actualizar por lotes ----------
@@ -67,50 +63,16 @@ async function actualizarPorLotes(conn, datos, tamanoLote = 100) {
     
     for (const registro of lote) {
       try {
-        // Construir la consulta de actualización dinámicamente
-        let query = "UPDATE general SET ";
-        const params = [];
-        let tieneValores = false;
-        
-        // Solo incluir campos que tienen valores
-        if (registro.ENTREGA_GLOSA) {
-          query += "ENTREGA_GLOSA = ?, ";
-          params.push(registro.ENTREGA_GLOSA);
-          tieneValores = true;
-        }
-        
-        if (registro.ENTREGA_CAPTURA) {
-          query += "ENTREGA_CAPTURA = ?, ";
-          params.push(registro.ENTREGA_CAPTURA);
-          tieneValores = true;
-        }
-        
-        if (registro.INICIO_CAPTURA) {
-          query += "INICIO_CAPTURA = ?, ";
-          params.push(registro.INICIO_CAPTURA);
-          tieneValores = true;
-        }
-        
-        if (registro.TERMINO_CAPTURA) {
-          query += "TERMINO_CAPTURA = ?, ";
-          params.push(registro.TERMINO_CAPTURA);
-          tieneValores = true;
-        }
-        
-        if (registro.PRIMER_RECONOCIMIENTO) {
-          query += "PRIMER_RECONOCIMIENTO = ?, ";
-          params.push(registro.PRIMER_RECONOCIMIENTO);
-          tieneValores = true;
-        }
+        // Construir la consulta de actualización para Clave_pedimento
+        let query = "UPDATE general SET Clave_pedimento = ?";
+        const params = [registro.Clave_pedimento];
+        let tieneValores = registro.Clave_pedimento != null;
         
         // Si no hay valores para actualizar, saltar este registro
         if (!tieneValores) {
           sinCambios++;
           continue;
         }
-        
-        // Eliminar la última coma y espacio
-        query = query.slice(0, -2);
         
         // Agregar la condición WHERE
         query += " WHERE id_referencias = ?";
@@ -160,32 +122,29 @@ async function actualizarPorLotes(conn, datos, tamanoLote = 100) {
     my = await mysql.createConnection(mysqlConfig);
     await my.query("SET time_zone = '+00:00'"); // evitar sorpresas de TZ
     
-    console.log('Obteniendo datos de eventos...');
+    console.log('Obteniendo datos de regimen...');
     const req = new sql.Request(mssqlPool);
-    const rs = await req.query(Q_EVENTOS);
+    const rs = await req.query(Q_REGIMEN);
     const rows = rs.recordset;
     
-    console.log(`Se encontraron ${rows.length} registros con eventos.`);
+    console.log(`Se encontraron ${rows.length} registros con información de régimen.`);
     
-    // Filtrar registros que tienen al menos un evento
-    const registrosConEventos = rows.filter(r => 
-      r.ENTREGA_GLOSA || r.ENTREGA_CAPTURA || r.INICIO_CAPTURA || 
-      r.TERMINO_CAPTURA || r.PRIMER_RECONOCIMIENTO
-    );
+    // Filtrar registros que tienen valor de Clave_pedimento
+    const registrosConRegimen = rows.filter(r => r.Clave_pedimento != null);
     
-    console.log(`De los cuales ${registrosConEventos.length} tienen al menos uno de los eventos buscados.`);
+    console.log(`De los cuales ${registrosConRegimen.length} tienen un valor válido para Clave_pedimento.`);
     
     console.log('\n===== INICIANDO ACTUALIZACIÓN DE REGISTROS =====');
     console.log(`Fecha y hora: ${new Date().toISOString()}`);
     
     // Actualizar los registros en MySQL
-    const resultado = await actualizarPorLotes(my, registrosConEventos);
+    const resultado = await actualizarPorLotes(my, registrosConRegimen);
     
     console.log('\n\n===== RESUMEN FINAL =====');
     console.log(`⏰ Fecha y hora de finalización: ${new Date().toISOString()}`);
     console.log(`⏱ Tiempo total de ejecución: ${resultado.tiempoTotal.toFixed(2)} segundos`);
     console.log(`📈 Estadísticas:`);
-    console.log(`   - Total de registros procesados: ${registrosConEventos.length}`);
+    console.log(`   - Total de registros procesados: ${registrosConRegimen.length}`);
     console.log(`   - Registros actualizados: ${resultado.actualizados}`);
     console.log(`   - Registros sin cambios: ${resultado.sinCambios}`);
     console.log(`   - Errores: ${resultado.errores}`);

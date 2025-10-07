@@ -165,22 +165,70 @@ SELECT
   aa.nombre             AS Agente_Aduanal,
   u.nombre              AS Ejecutivo,
   r.FechaApertura       AS APERTURA,
-  MAX(CASE WHEN b.IdEvento =  6 THEN b.FechaHoraCapturada END) AS LLEGADA_MERCAN,
-  MAX(CASE WHEN b.IdEvento = 18 THEN b.FechaHoraCapturada END) AS ENTREGA_CLASIFICA,
-  MAX(CASE WHEN b.IdEvento = 19 THEN b.FechaHoraCapturada END) AS INICIO_CLASIFICA,
-  MAX(CASE WHEN b.IdEvento = 20 THEN b.FechaHoraCapturada END) AS TERMINO_CLASIFICA,
-  MAX(CASE WHEN b.IdEvento = 69 THEN b.FechaHoraCapturada END) AS INICIO_GLOSA,
-  MAX(CASE WHEN b.IdEvento = 70 THEN b.FechaHoraCapturada END) AS TERMINO_GLOSA,
-  MAX(CASE WHEN b.IdEvento = 22 THEN b.FechaHoraCapturada END) AS ENTREGA_GLOSA,
-  MAX(CASE WHEN b.IdEvento = 29 THEN b.FechaHoraCapturada END) AS PAGO_PEDIMENTO,
-  MAX(CASE WHEN b.IdEvento = 32 THEN b.FechaHoraCapturada END) AS DESPACHO_MERCAN,
-  MAX(CASE WHEN b.IdEvento = 47 THEN b.FechaHoraCapturada END) AS ENTREGA_FAC,
-  MAX(CASE WHEN b.IdEvento = 48 THEN b.FechaHoraCapturada END) AS FECHA_FAC,
-  MAX(CASE WHEN b.IdEvento = 49 THEN b.FechaHoraCapturada END) AS ENTREGA_FAC_CLI,
-  MAX(CASE WHEN b.IdEvento = 26 THEN b.FechaHoraCapturada END) AS ENTREGA_CAPTURA,
-  MAX(CASE WHEN b.IdEvento = 33 THEN b.FechaHoraCapturada END) AS INICIO_CAPTURA,
-  MAX(CASE WHEN b.IdEvento = 42 THEN b.FechaHoraCapturada END) AS TERMINO_CAPTURA,
-  MAX(CASE WHEN b.IdEvento = 36 THEN b.FechaHoraCapturada END) AS PRIMER_RECONOCIMIENTO,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 6 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 6 THEN be.FechaHoraCapturada 
+  END) AS LLEGADA_MERCAN,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 18 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 18 THEN be.FechaHoraCapturada 
+  END) AS ENTREGA_CLASIFICA,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 19 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 19 THEN be.FechaHoraCapturada 
+  END) AS INICIO_CLASIFICA,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 20 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 20 THEN be.FechaHoraCapturada 
+  END) AS TERMINO_CLASIFICA,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 69 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 69 THEN be.FechaHoraCapturada 
+  END) AS INICIO_GLOSA,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 70 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 70 THEN be.FechaHoraCapturada 
+  END) AS TERMINO_GLOSA,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 22 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 22 THEN be.FechaHoraCapturada 
+  END) AS ENTREGA_GLOSA,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 29 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 29 THEN be.FechaHoraCapturada 
+  END) AS PAGO_PEDIMENTO,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 32 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 32 THEN be.FechaHoraCapturada 
+  END) AS DESPACHO_MERCAN,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 47 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 47 THEN be.FechaHoraCapturada 
+  END) AS ENTREGA_FAC,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 48 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 48 THEN be.FechaHoraCapturada 
+  END) AS FECHA_FAC,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 49 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 49 THEN be.FechaHoraCapturada 
+  END) AS ENTREGA_FAC_CLI,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 26 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 26 THEN be.FechaHoraCapturada 
+  END) AS ENTREGA_CAPTURA,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 33 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 33 THEN be.FechaHoraCapturada 
+  END) AS INICIO_CAPTURA,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 42 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 42 THEN be.FechaHoraCapturada 
+  END) AS TERMINO_CAPTURA,
+  MAX(CASE 
+      WHEN r.Operacion = 1 AND b.IdEvento = 36 THEN b.FechaHoraCapturada 
+      WHEN r.Operacion = 2 AND be.IdEvento = 36 THEN be.FechaHoraCapturada 
+  END) AS PRIMER_RECONOCIMIENTO,
   MAX(p.ADV1)           AS Total_Adv,
   MAX(p.DTA1)           AS Total_DTA,
   MAX(p.IVA1)           AS Total_IVA,
@@ -195,6 +243,7 @@ LEFT JOIN clientes c_f ON c_f.id_cliente = r.concargo
 LEFT JOIN agentesaduanales aa ON aa.id_agenteaduanal = r.id_agenteaduanal
 LEFT JOIN usuarios u ON u.id_usuario = r.IdEjecutivo
 LEFT JOIN BitacoraEventosImportacion b ON b.Referencia = r.id_referencias
+LEFT JOIN BitacoraEventosExportacion be ON be.Referencia = r.id_referencias
 WHERE r.FechaApertura > @fApertura
   AND r.Cancelada = 0
 GROUP BY

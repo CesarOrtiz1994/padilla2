@@ -232,7 +232,8 @@ SELECT
   MAX(p.ADV1)           AS Total_Adv,
   MAX(p.DTA1)           AS Total_DTA,
   MAX(p.IVA1)           AS Total_IVA,
-  MAX(p.TOTALIMPUESTOS) AS Total_Imp
+  MAX(p.TOTALIMPUESTOS) AS Total_Imp,
+  r.Cancelada           AS Cancelada
 FROM referencias r
 INNER JOIN PedimentosEncabezado p ON p.id_referencia = r.id_referencias
 LEFT JOIN regimen re ON re.id_regimen = r.id_regimen
@@ -245,11 +246,10 @@ LEFT JOIN usuarios u ON u.id_usuario = r.IdEjecutivo
 LEFT JOIN BitacoraEventosImportacion b ON b.Referencia = r.id_referencias
 LEFT JOIN BitacoraEventosExportacion be ON be.Referencia = r.id_referencias
 WHERE r.FechaApertura > @fApertura
-  AND r.Cancelada = 0
 GROUP BY
   r.NumeroDeReferencia, r.id_referencias, p.Pedimento, r.Operacion, re.regimen,
   a_origen.descripcion, a_llegada.descripcion, c_i.nombre, c_f.nombre,
-  aa.nombre, u.nombre, r.FechaApertura
+  aa.nombre, u.nombre, r.FechaApertura, r.Cancelada
 `;
 
 const Q_FACTURAS = `
@@ -265,7 +265,6 @@ SELECT
 FROM referencias r
 INNER JOIN PedimentosFacturas pf ON r.id_referencias = pf.IDReferencia
 WHERE r.FechaApertura > @fApertura
-  AND r.Cancelada = 0
 `;
 
 // ---------- UPSERTS MySQL ----------
@@ -276,7 +275,7 @@ INSERT INTO general (
   LLEGADA_MERCAN, ENTREGA_CLASIFICA, INICIO_CLASIFICA, TERMINO_CLASIFICA,
   INICIO_GLOSA, TERMINO_GLOSA, ENTREGA_GLOSA, PAGO_PEDIMENTO, DESPACHO_MERCAN,
   ENTREGA_FAC, FECHA_FAC, ENTREGA_FAC_CLI, ENTREGA_CAPTURA, INICIO_CAPTURA, 
-  TERMINO_CAPTURA, PRIMER_RECONOCIMIENTO, Total_Adv, Total_DTA, Total_IVA, Total_Imp
+  TERMINO_CAPTURA, PRIMER_RECONOCIMIENTO, Total_Adv, Total_DTA, Total_IVA, Total_Imp, Cancelada
 ) VALUES ?
 ON DUPLICATE KEY UPDATE
   NumeroDeReferencia=VALUES(NumeroDeReferencia),
@@ -309,7 +308,8 @@ ON DUPLICATE KEY UPDATE
   Total_Adv=VALUES(Total_Adv),
   Total_DTA=VALUES(Total_DTA),
   Total_IVA=VALUES(Total_IVA),
-  Total_Imp=VALUES(Total_Imp);
+  Total_Imp=VALUES(Total_Imp),
+  Cancelada=VALUES(Cancelada);
 `;
 
 const UP_FACTURAS = `
@@ -391,7 +391,8 @@ ON DUPLICATE KEY UPDATE
       safeMoneyValue(r.Total_Adv, 'Total_Adv'),
       safeMoneyValue(r.Total_DTA, 'Total_DTA'),
       safeMoneyValue(r.Total_IVA, 'Total_IVA'),
-      safeMoneyValue(r.Total_Imp, 'Total_Imp')
+      safeMoneyValue(r.Total_Imp, 'Total_Imp'),
+      r.Cancelada
     ]));
     const preparedGeneral = valsGeneral.length;
 

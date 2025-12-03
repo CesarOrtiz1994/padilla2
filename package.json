@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "run-once": "node index.js",
-    "start": "node scheduler.js"
+    "start": "node scheduler.js",
+    "corregir-fechas": "node corregir_fechas_eventos.js"
   },
   "author": "",
   "license": "ISC",

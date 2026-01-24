@@ -259,6 +259,7 @@ SELECT
   c_f.nombre            AS Facturar_a,
   aa.nombre             AS Agente_Aduanal,
   u.nombre              AS Ejecutivo,
+  mt.descripcion        AS medio_trasporte,
   r.FechaApertura       AS APERTURA,
   MAX(CASE 
       WHEN r.Operacion = 1 AND b.IdEvento = 6 THEN b.FechaHoraCapturada 
@@ -338,6 +339,7 @@ LEFT JOIN clientes c_i ON c_i.id_cliente = r.id_cliente
 LEFT JOIN clientes c_f ON c_f.id_cliente = r.concargo
 LEFT JOIN agentesaduanales aa ON aa.id_agenteaduanal = r.id_agenteaduanal
 LEFT JOIN usuarios u ON u.id_usuario = r.IdEjecutivo
+LEFT JOIN MediosDeTransporte mt ON mt.IDMedioDeTransporte = p.IDTransporteEnt_Sal
 LEFT JOIN BitacoraEventosImportacion b ON b.Referencia = r.id_referencias
 LEFT JOIN BitacoraEventosExportacion be ON be.Referencia = r.id_referencias
 WHERE r.FechaApertura > @fApertura
@@ -384,6 +386,7 @@ ON DUPLICATE KEY UPDATE
   Facturar_a=VALUES(Facturar_a),
   Agente_Aduanal=VALUES(Agente_Aduanal),
   Ejecutivo=VALUES(Ejecutivo),
+  medio_trasporte=VALUES(medio_trasporte),
   APERTURA=VALUES(APERTURA),
   LLEGADA_MERCAN=VALUES(LLEGADA_MERCAN),
   ENTREGA_CLASIFICA=VALUES(ENTREGA_CLASIFICA),

@@ -335,7 +335,7 @@ ON DUPLICATE KEY UPDATE
     console.log('Conectando...');
     mssqlPool = await sql.connect(mssqlConfig);
     my = await mysql.createConnection(mysqlConfig);
-    await my.query("SET time_zone = '+00:00'"); // evitar sorpresas de TZ
+    await my.query("SET time_zone = '-06:00'"); // America/Mexico_City (UTC-6)
 
     // 1) Lee checkpoint y calcula ventana
     const lastDt = await getCheckpoint(my);

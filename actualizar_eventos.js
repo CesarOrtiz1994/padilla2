@@ -210,7 +210,7 @@ async function actualizarPorLotes(conn, datos, tamanoLote = 100) {
     console.log('Conectando a las bases de datos...');
     mssqlPool = await sql.connect(mssqlConfig);
     my = await mysql.createConnection(mysqlConfig);
-    await my.query("SET time_zone = '+00:00'"); // evitar sorpresas de TZ
+    await my.query("SET time_zone = '-06:00'"); // America/Mexico_City (UTC-6)
     
     console.log('Obteniendo datos de eventos...');
     const req = new sql.Request(mssqlPool);

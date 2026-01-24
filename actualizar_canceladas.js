@@ -63,6 +63,7 @@ SELECT
   c_f.nombre            AS Facturar_a,
   aa.nombre             AS Agente_Aduanal,
   u.nombre              AS Ejecutivo,
+  mt.descripcion        AS medio_trasporte,
   r.FechaApertura       AS APERTURA,
   MAX(CASE 
       WHEN r.Operacion = 1 AND b.IdEvento = 6 THEN b.FechaHoraCapturada 
@@ -141,12 +142,13 @@ LEFT JOIN clientes c_i ON c_i.id_cliente = r.id_cliente
 LEFT JOIN clientes c_f ON c_f.id_cliente = r.concargo
 LEFT JOIN agentesaduanales aa ON aa.id_agenteaduanal = r.id_agenteaduanal
 LEFT JOIN usuarios u ON u.id_usuario = r.IdEjecutivo
+LEFT JOIN MediosDeTransporte mt ON mt.IDMedioDeTransporte = p.IDTransporteEnt_Sal
 LEFT JOIN BitacoraEventosImportacion b ON b.Referencia = r.id_referencias
 LEFT JOIN BitacoraEventosExportacion be ON be.Referencia = r.id_referencias
 GROUP BY
   r.id_referencias, r.NumeroDeReferencia, r.Cancelada, p.Pedimento, r.Operacion, re.regimen,
   a_origen.descripcion, a_llegada.descripcion, c_i.nombre, c_f.nombre,
-  aa.nombre, u.nombre, r.FechaApertura
+  aa.nombre, u.nombre, mt.descripcion, r.FechaApertura
 `;
 
 // ---------- Query para verificar registros existentes en MySQL ----------
@@ -284,13 +286,13 @@ async function actualizarPorLotes(conn, datosExistentes, datosNuevos, tamanoLote
           const query = `
             INSERT INTO general (
               id_referencias, NumeroDeReferencia, Pedimento, Operacion, Clave_pedimento,
-              a_despacho, a_llegada, C_Imp_Exp, Facturar_a, Agente_Aduanal, Ejecutivo,
+              a_despacho, a_llegada, C_Imp_Exp, Facturar_a, Agente_Aduanal, Ejecutivo, medio_trasporte,
               APERTURA, LLEGADA_MERCAN, ENTREGA_CLASIFICA, INICIO_CLASIFICA, TERMINO_CLASIFICA,
               INICIO_GLOSA, TERMINO_GLOSA, ENTREGA_GLOSA, PAGO_PEDIMENTO, DESPACHO_MERCAN,
               ENTREGA_FAC, FECHA_FAC, ENTREGA_FAC_CLI, ENTREGA_CAPTURA, INICIO_CAPTURA,
               TERMINO_CAPTURA, PRIMER_RECONOCIMIENTO, Total_Adv, Total_DTA, Total_IVA, Total_Imp,
               Cancelada
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `;
           
           const params = [
@@ -305,6 +307,7 @@ async function actualizarPorLotes(conn, datosExistentes, datosNuevos, tamanoLote
             registro.Facturar_a,
             registro.Agente_Aduanal,
             registro.Ejecutivo,
+            registro.medio_trasporte,
             registro.APERTURA,
             registro.LLEGADA_MERCAN,
             registro.ENTREGA_CLASIFICA,

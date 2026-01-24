@@ -60,6 +60,7 @@ SELECT
   a_origen.descripcion  AS a_despacho,
   a_llegada.descripcion AS a_llegada,
   c_i.nombre            AS C_Imp_Exp,
+  r.facturada           AS facturada,
   c_f.nombre            AS Facturar_a,
   aa.nombre             AS Agente_Aduanal,
   u.nombre              AS Ejecutivo,
@@ -145,7 +146,7 @@ LEFT JOIN BitacoraEventosImportacion b ON b.Referencia = r.id_referencias
 LEFT JOIN BitacoraEventosExportacion be ON be.Referencia = r.id_referencias
 GROUP BY
   r.id_referencias, r.NumeroDeReferencia, r.Cancelada, p.Pedimento, r.Operacion, re.regimen,
-  a_origen.descripcion, a_llegada.descripcion, c_i.nombre, c_f.nombre,
+  a_origen.descripcion, a_llegada.descripcion, c_i.nombre, r.facturada, c_f.nombre,
   aa.nombre, u.nombre, r.FechaApertura
 `;
 
@@ -153,6 +154,17 @@ GROUP BY
 const Q_EXISTENTES = `
 SELECT id_referencias FROM general
 `;
+
+// ---------- Función para sumar 6 horas a la fecha ----------
+function sumar6Horas(fecha) {
+  if (!fecha) return null;
+  
+  const date = new Date(fecha);
+  // Sumar 6 horas (6 * 60 * 60 * 1000 milisegundos)
+  date.setTime(date.getTime() + (6 * 60 * 60 * 1000));
+  
+  return date;
+}
 
 // Función para convertir valores money a números para MySQL
 function safeMoneyValue(value, fieldName = 'desconocido') {
@@ -284,13 +296,13 @@ async function actualizarPorLotes(conn, datosExistentes, datosNuevos, tamanoLote
           const query = `
             INSERT INTO general (
               id_referencias, NumeroDeReferencia, Pedimento, Operacion, Clave_pedimento,
-              a_despacho, a_llegada, C_Imp_Exp, Facturar_a, Agente_Aduanal, Ejecutivo,
+              a_despacho, a_llegada, C_Imp_Exp, facturada, Facturar_a, Agente_Aduanal, Ejecutivo,
               APERTURA, LLEGADA_MERCAN, ENTREGA_CLASIFICA, INICIO_CLASIFICA, TERMINO_CLASIFICA,
               INICIO_GLOSA, TERMINO_GLOSA, ENTREGA_GLOSA, PAGO_PEDIMENTO, DESPACHO_MERCAN,
               ENTREGA_FAC, FECHA_FAC, ENTREGA_FAC_CLI, ENTREGA_CAPTURA, INICIO_CAPTURA,
               TERMINO_CAPTURA, PRIMER_RECONOCIMIENTO, Total_Adv, Total_DTA, Total_IVA, Total_Imp,
               Cancelada
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `;
           
           const params = [
@@ -302,26 +314,27 @@ async function actualizarPorLotes(conn, datosExistentes, datosNuevos, tamanoLote
             registro.a_despacho,
             registro.a_llegada,
             registro.C_Imp_Exp,
+            registro.facturada,
             registro.Facturar_a,
             registro.Agente_Aduanal,
             registro.Ejecutivo,
-            registro.APERTURA,
-            registro.LLEGADA_MERCAN,
-            registro.ENTREGA_CLASIFICA,
-            registro.INICIO_CLASIFICA,
-            registro.TERMINO_CLASIFICA,
-            registro.INICIO_GLOSA,
-            registro.TERMINO_GLOSA,
-            registro.ENTREGA_GLOSA,
-            registro.PAGO_PEDIMENTO,
-            registro.DESPACHO_MERCAN,
-            registro.ENTREGA_FAC,
-            registro.FECHA_FAC,
-            registro.ENTREGA_FAC_CLI,
-            registro.ENTREGA_CAPTURA,
-            registro.INICIO_CAPTURA,
-            registro.TERMINO_CAPTURA,
-            registro.PRIMER_RECONOCIMIENTO,
+            sumar6Horas(registro.APERTURA),
+            sumar6Horas(registro.LLEGADA_MERCAN),
+            sumar6Horas(registro.ENTREGA_CLASIFICA),
+            sumar6Horas(registro.INICIO_CLASIFICA),
+            sumar6Horas(registro.TERMINO_CLASIFICA),
+            sumar6Horas(registro.INICIO_GLOSA),
+            sumar6Horas(registro.TERMINO_GLOSA),
+            sumar6Horas(registro.ENTREGA_GLOSA),
+            sumar6Horas(registro.PAGO_PEDIMENTO),
+            sumar6Horas(registro.DESPACHO_MERCAN),
+            sumar6Horas(registro.ENTREGA_FAC),
+            sumar6Horas(registro.FECHA_FAC),
+            sumar6Horas(registro.ENTREGA_FAC_CLI),
+            sumar6Horas(registro.ENTREGA_CAPTURA),
+            sumar6Horas(registro.INICIO_CAPTURA),
+            sumar6Horas(registro.TERMINO_CAPTURA),
+            sumar6Horas(registro.PRIMER_RECONOCIMIENTO),
             safeMoneyValue(registro.Total_Adv, 'Total_Adv'),
             safeMoneyValue(registro.Total_DTA, 'Total_DTA'),
             safeMoneyValue(registro.Total_IVA, 'Total_IVA'),

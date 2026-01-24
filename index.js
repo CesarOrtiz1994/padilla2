@@ -31,7 +31,8 @@ const mysqlConfig = {
   port: Number(process.env.MYSQL_PORT1 || 3306)
 };
 
-const ACOLCHADO_DIAS = Number(process.env.ACOLCHADO_DIAS || 50);
+const ACOLCHADO_DIAS = Number(process.env.ACOLCHADO_DIAS || 180);
+const DEBUG_REF_ID = process.env.DEBUG_REF_ID ? Number(process.env.DEBUG_REF_ID) : null;
 
 // ---------- Checkpoint: SOLO leer/actualizar (ya existe) ----------
 async function getCheckpoint(conn) {
@@ -58,6 +59,17 @@ function chunk(arr, size) {
   return out;
 }
 
+// ---------- Función para sumar 6 horas a la fecha ----------
+function sumar6Horas(fecha) {
+  if (!fecha) return null;
+  
+  const date = new Date(fecha);
+  // Sumar 6 horas (6 * 60 * 60 * 1000 milisegundos)
+  date.setTime(date.getTime() + (6 * 60 * 60 * 1000));
+  
+  return date;
+}
+
 // Función para convertir valores money a números para MySQL
 // Esta versión preserva los valores originales sin limitarlos
 function safeMoneyValue(value, fieldName = 'desconocido') {
@@ -69,12 +81,10 @@ function safeMoneyValue(value, fieldName = 'desconocido') {
     
     // Si es un objeto (como en algunos resultados de SQL Server)
     if (typeof value === 'object') {
-      console.log(`Campo ${fieldName}: Valor es un objeto, intentando convertir:`, value);
       // Intentar extraer un valor numérico si existe
       if (value.value !== undefined) {
         value = value.value;
       } else {
-        console.log(`Campo ${fieldName}: No se pudo extraer valor del objeto, usando null`);
         return null;
       }
     }
@@ -90,15 +100,7 @@ function safeMoneyValue(value, fieldName = 'desconocido') {
     }
     
     // Verificar si es un número válido
-    if (isNaN(numValue)) {
-      console.log(`Campo ${fieldName}: Valor no numérico: "${value}", usando null`);
-      return null;
-    }
-    
-    // Registrar valores extremadamente grandes pero no modificarlos
-    if (Math.abs(numValue) > 1000000) { // Si es mayor a un millón
-      console.log(`Campo ${fieldName}: Valor monetario extremo detectado: ${numValue}, manteniendo valor original`);
-    }
+    if (isNaN(numValue)) return null;
     
     // Devolver el valor original sin modificar
     return numValue;
@@ -127,27 +129,119 @@ function parseOkPacket(ok, fallbackRecords = 0) {
 }
 
 // UPSERT por lotes + captura warnings por batch
-async function upsertChunks(conn, query, data, size = 1000) {
+async function upsertChunks(conn, query, data, size = 1000, opts = {}) {
   const totals = { records: 0, duplicates: 0, warnings: 0, changedRows: 0, affectedRows: 0 };
-  const warningBatches = []; // [{batchIndex, warnings: [...] }]
+
+  const label = opts.label || 'upsert';
+  const idIndex = Number.isInteger(opts.idIndex) ? opts.idIndex : null;
 
   for (let i = 0; i < data.length; i += size) {
     const part = data.slice(i, i + size);
+
+    let rangeStr = '';
+    if (idIndex != null) {
+      let minId = null;
+      let maxId = null;
+      for (const row of part) {
+        const v = row?.[idIndex];
+        const n = v == null ? null : Number(v);
+        if (n == null || Number.isNaN(n)) continue;
+        if (minId == null || n < minId) minId = n;
+        if (maxId == null || n > maxId) maxId = n;
+      }
+      if (minId != null || maxId != null) rangeStr = ` ids=[${minId ?? 'N/A'}..${maxId ?? 'N/A'}]`;
+    }
+
+    const batchIndex = Math.floor(i / size);
+    const t0 = Date.now();
+    console.log(`BATCH ${label} #${batchIndex} size=${part.length}${rangeStr}`);
+
     const [ok] = await conn.query(query, [part]);
     const s = parseOkPacket(ok, part.length);
+
+    const t1 = Date.now();
+    console.log(
+      `BATCH ${label} #${batchIndex} done in ${Math.round((t1 - t0) / 1000)}s ` +
+      `(records=${s.records} dup=${s.duplicates} changed=${s.changedRows} warnings=${s.warnings})`
+    );
 
     totals.records      += s.records;
     totals.duplicates   += s.duplicates;
     totals.warnings     += s.warnings;
     totals.changedRows  += s.changedRows;
     totals.affectedRows += s.affectedRows;
-
-    if (s.warnings > 0) {
-      const [warnRows] = await conn.query('SHOW WARNINGS LIMIT 50');
-      warningBatches.push({ batchIndex: Math.floor(i / size), warnings: warnRows });
-    }
   }
-  return { totals, warningBatches };
+  return { totals };
+}
+
+async function debugReferencia(mssqlPool, my, desde) {
+  if (!DEBUG_REF_ID) return;
+  try {
+    console.log(`DEBUG_REF_ID=${DEBUG_REF_ID}`);
+    console.log(`DEBUG ventana: last_dt - ACOLCHADO_DIAS => desde=${desde.toISOString()}`);
+
+    const req = new sql.Request(mssqlPool);
+    req.input('id', sql.Int, DEBUG_REF_ID);
+    const rsApertura = await req.query(`
+      SELECT
+        r.id_referencias,
+        r.NumeroDeReferencia,
+        r.FechaApertura,
+        r.Operacion,
+        r.Cancelada
+      FROM referencias r
+      WHERE r.id_referencias = @id
+    `);
+    const ref = rsApertura.recordset?.[0];
+
+    if (!ref) {
+      console.log('DEBUG: La referencia no existe en SQL Server (referencias).');
+    } else {
+      const fa = ref.FechaApertura ? new Date(ref.FechaApertura) : null;
+      console.log(`DEBUG: referencias -> FechaApertura=${fa ? fa.toISOString() : null} Operacion=${ref.Operacion} Cancelada=${ref.Cancelada}`);
+      console.log(`DEBUG: cae en ventana por apertura? ${fa ? (fa > desde) : 'sin FechaApertura'}`);
+    }
+
+    const reqPed = new sql.Request(mssqlPool);
+    reqPed.input('id', sql.Int, DEBUG_REF_ID);
+    const rsPed = await reqPed.query(`
+      SELECT TOP 1 1 AS hasPedimento
+      FROM PedimentosEncabezado
+      WHERE id_referencia = @id
+    `);
+    console.log(`DEBUG: PedimentosEncabezado existe? ${rsPed.recordset?.length ? 'SI' : 'NO (y Q_GENERAL usa INNER JOIN)'}`);
+
+    const reqEv = new sql.Request(mssqlPool);
+    reqEv.input('id', sql.Int, DEBUG_REF_ID);
+    const rsEv = await reqEv.query(`
+      SELECT
+        MAX(CASE WHEN r.Operacion = 1 AND b.IdEvento = 48 THEN b.FechaHoraCapturada
+                 WHEN r.Operacion = 2 AND be.IdEvento = 48 THEN be.FechaHoraCapturada END) AS FECHA_FAC,
+        MAX(CASE WHEN r.Operacion = 1 AND b.IdEvento = 47 THEN b.FechaHoraCapturada
+                 WHEN r.Operacion = 2 AND be.IdEvento = 47 THEN be.FechaHoraCapturada END) AS ENTREGA_FAC,
+        MAX(CASE WHEN r.Operacion = 1 AND b.IdEvento = 49 THEN b.FechaHoraCapturada
+                 WHEN r.Operacion = 2 AND be.IdEvento = 49 THEN be.FechaHoraCapturada END) AS ENTREGA_FAC_CLI
+      FROM referencias r
+      LEFT JOIN BitacoraEventosImportacion b ON b.Referencia = r.id_referencias
+      LEFT JOIN BitacoraEventosExportacion  be ON be.Referencia = r.id_referencias
+      WHERE r.id_referencias = @id
+      GROUP BY r.id_referencias
+    `);
+    const ev = rsEv.recordset?.[0];
+    console.log(`DEBUG: Bitacora IdEvento=48 (FECHA_FAC) -> ${ev?.FECHA_FAC ? new Date(ev.FECHA_FAC).toISOString() : null}`);
+
+    const [myRow] = await my.query(
+      'SELECT id_referencias, APERTURA, FECHA_FAC FROM general WHERE id_referencias = ? LIMIT 1',
+      [DEBUG_REF_ID]
+    );
+    const g = Array.isArray(myRow) ? myRow[0] : null;
+    console.log(`DEBUG: MySQL general -> existe? ${g ? 'SI' : 'NO'}`);
+    if (g) {
+      console.log(`DEBUG: MySQL general -> APERTURA=${g.APERTURA ? new Date(g.APERTURA).toISOString() : null} FECHA_FAC=${g.FECHA_FAC ? new Date(g.FECHA_FAC).toISOString() : null}`);
+    }
+  } catch (e) {
+    console.error('DEBUG: error debugReferencia:', e?.message || e);
+  }
 }
 
 // ---------- Queries (como los tenías) ----------
@@ -161,6 +255,7 @@ SELECT
   a_origen.descripcion  AS a_despacho,
   a_llegada.descripcion AS a_llegada,
   c_i.nombre            AS C_Imp_Exp,
+  r.facturada           AS facturada,
   c_f.nombre            AS Facturar_a,
   aa.nombre             AS Agente_Aduanal,
   u.nombre              AS Ejecutivo,
@@ -248,7 +343,7 @@ LEFT JOIN BitacoraEventosExportacion be ON be.Referencia = r.id_referencias
 WHERE r.FechaApertura > @fApertura
 GROUP BY
   r.NumeroDeReferencia, r.id_referencias, p.Pedimento, r.Operacion, re.regimen,
-  a_origen.descripcion, a_llegada.descripcion, c_i.nombre, c_f.nombre,
+  a_origen.descripcion, a_llegada.descripcion, c_i.nombre, r.facturada, c_f.nombre,
   aa.nombre, u.nombre, r.FechaApertura, r.Cancelada
 `;
 
@@ -271,7 +366,7 @@ WHERE r.FechaApertura > @fApertura
 const UP_GENERAL = `
 INSERT INTO general (
   NumeroDeReferencia, id_referencias, Pedimento, Operacion, Clave_pedimento, a_despacho, a_llegada,
-  C_Imp_Exp, Facturar_a, Agente_Aduanal, Ejecutivo, APERTURA,
+  C_Imp_Exp, facturada, Facturar_a, Agente_Aduanal, Ejecutivo, APERTURA,
   LLEGADA_MERCAN, ENTREGA_CLASIFICA, INICIO_CLASIFICA, TERMINO_CLASIFICA,
   INICIO_GLOSA, TERMINO_GLOSA, ENTREGA_GLOSA, PAGO_PEDIMENTO, DESPACHO_MERCAN,
   ENTREGA_FAC, FECHA_FAC, ENTREGA_FAC_CLI, ENTREGA_CAPTURA, INICIO_CAPTURA, 
@@ -285,6 +380,7 @@ ON DUPLICATE KEY UPDATE
   a_despacho=VALUES(a_despacho),
   a_llegada=VALUES(a_llegada),
   C_Imp_Exp=VALUES(C_Imp_Exp),
+  facturada=VALUES(facturada),
   Facturar_a=VALUES(Facturar_a),
   Agente_Aduanal=VALUES(Agente_Aduanal),
   Ejecutivo=VALUES(Ejecutivo),
@@ -338,12 +434,30 @@ ON DUPLICATE KEY UPDATE
     const lastDt = await getCheckpoint(my);
     const desde = new Date(lastDt.getTime() - ACOLCHADO_DIAS * 86400000);
 
+    if (DEBUG_REF_ID) {
+      console.log(`DEBUG: last_dt=${lastDt.toISOString()} ACOLCHADO_DIAS=${ACOLCHADO_DIAS}`);
+    }
+
+    await debugReferencia(mssqlPool, my, desde);
+
     // 2) GENERAL
     const req1 = new sql.Request(mssqlPool);
     req1.input('fApertura', sql.DateTime, desde);
     const rs1 = await req1.query(Q_GENERAL);
     const rows1 = rs1.recordset;
     const selectedGeneral = rows1.length;
+
+    if (DEBUG_REF_ID) {
+      const dbg = rows1.find(r => Number(r.id_referencias) === DEBUG_REF_ID);
+      if (!dbg) {
+        console.log(`DEBUG: Q_GENERAL NO incluyó id_referencias=${DEBUG_REF_ID} (probable: fuera de ventana por FechaApertura o falta PedimentosEncabezado).`);
+      } else {
+        console.log(`DEBUG: Q_GENERAL incluyó id_referencias=${DEBUG_REF_ID}`);
+        console.log(`DEBUG: Q_GENERAL -> APERTURA=${dbg.APERTURA ? new Date(dbg.APERTURA).toISOString() : null}`);
+        console.log(`DEBUG: Q_GENERAL -> FECHA_FAC(raw)=${dbg.FECHA_FAC ? new Date(dbg.FECHA_FAC).toISOString() : null}`);
+        console.log(`DEBUG: Q_GENERAL -> FECHA_FAC(+6h)=${dbg.FECHA_FAC ? sumar6Horas(dbg.FECHA_FAC).toISOString() : null}`);
+      }
+    }
 
     const cleanGen = rows1.filter(r => r.id_referencias != null);
     const droppedGeneral = selectedGeneral - cleanGen.length;
@@ -358,7 +472,7 @@ ON DUPLICATE KEY UPDATE
     const cleanFac = rows2.filter(r => r.id_referencias != null && r.IDFactura != null);
     const droppedFacturas = selectedFacturas - cleanFac.length;
 
-    // 4) Mapear VALUES (prepared)
+    // 4) Mapear VALUES (prepared) - Convertir fechas al formato correcto
     const valsGeneral = cleanGen.map(r => ([
       r.NumeroDeReferencia,
       r.id_referencias,
@@ -368,26 +482,27 @@ ON DUPLICATE KEY UPDATE
       r.a_despacho,
       r.a_llegada,
       r.C_Imp_Exp,
+      r.facturada,
       r.Facturar_a,
       r.Agente_Aduanal,
       r.Ejecutivo,
-      r.APERTURA,
-      r.LLEGADA_MERCAN,
-      r.ENTREGA_CLASIFICA,
-      r.INICIO_CLASIFICA,
-      r.TERMINO_CLASIFICA,
-      r.INICIO_GLOSA,
-      r.TERMINO_GLOSA,
-      r.ENTREGA_GLOSA,
-      r.PAGO_PEDIMENTO,
-      r.DESPACHO_MERCAN,
-      r.ENTREGA_FAC,
-      r.FECHA_FAC,
-      r.ENTREGA_FAC_CLI,
-      r.ENTREGA_CAPTURA,
-      r.INICIO_CAPTURA,
-      r.TERMINO_CAPTURA,
-      r.PRIMER_RECONOCIMIENTO,
+      sumar6Horas(r.APERTURA),
+      sumar6Horas(r.LLEGADA_MERCAN),
+      sumar6Horas(r.ENTREGA_CLASIFICA),
+      sumar6Horas(r.INICIO_CLASIFICA),
+      sumar6Horas(r.TERMINO_CLASIFICA),
+      sumar6Horas(r.INICIO_GLOSA),
+      sumar6Horas(r.TERMINO_GLOSA),
+      sumar6Horas(r.ENTREGA_GLOSA),
+      sumar6Horas(r.PAGO_PEDIMENTO),
+      sumar6Horas(r.DESPACHO_MERCAN),
+      sumar6Horas(r.ENTREGA_FAC),
+      sumar6Horas(r.FECHA_FAC),
+      sumar6Horas(r.ENTREGA_FAC_CLI),
+      sumar6Horas(r.ENTREGA_CAPTURA),
+      sumar6Horas(r.INICIO_CAPTURA),
+      sumar6Horas(r.TERMINO_CAPTURA),
+      sumar6Horas(r.PRIMER_RECONOCIMIENTO),
       safeMoneyValue(r.Total_Adv, 'Total_Adv'),
       safeMoneyValue(r.Total_DTA, 'Total_DTA'),
       safeMoneyValue(r.Total_IVA, 'Total_IVA'),
@@ -396,11 +511,21 @@ ON DUPLICATE KEY UPDATE
     ]));
     const preparedGeneral = valsGeneral.length;
 
+    if (DEBUG_REF_ID) {
+      const row = valsGeneral.find(v => Number(v?.[1]) === DEBUG_REF_ID);
+      if (!row) {
+        console.log(`DEBUG: valsGeneral NO contiene id_referencias=${DEBUG_REF_ID} (no se hará upsert en general).`);
+      } else {
+        console.log(`DEBUG: valsGeneral SI contiene id_referencias=${DEBUG_REF_ID}`);
+        console.log(`DEBUG: valsGeneral -> FECHA_FAC(param)=${row[24] ? new Date(row[24]).toISOString() : null}`);
+      }
+    }
+
     const valsFacturas = cleanFac.map(r => ([
       r.id_referencias,
       r.IDFactura,
       r.NumFac,
-      r.Fecha_c,
+      sumar6Horas(r.Fecha_c),
       (r.Incoterm ?? r.INCOTER ?? null),
       r.Moneda,
       safeMoneyValue(r.Valor_ME, 'Valor_ME'),
@@ -411,8 +536,12 @@ ON DUPLICATE KEY UPDATE
     // 5) TRANSACCIÓN: upserts + checkpoint
     await my.beginTransaction();
 
-    const resGen = preparedGeneral ? await upsertChunks(my, UP_GENERAL, valsGeneral, 1000) : { totals: {records:0,duplicates:0,warnings:0,changedRows:0,affectedRows:0}, warningBatches: [] };
-    const resFac = preparedFacturas ? await upsertChunks(my, UP_FACTURAS, valsFacturas, 1000) : { totals: {records:0,duplicates:0,warnings:0,changedRows:0,affectedRows:0}, warningBatches: [] };
+    const resGen = preparedGeneral
+      ? await upsertChunks(my, UP_GENERAL, valsGeneral, 1000, { label: 'general', idIndex: 1 })
+      : { totals: {records:0,duplicates:0,warnings:0,changedRows:0,affectedRows:0} };
+    const resFac = preparedFacturas
+      ? await upsertChunks(my, UP_FACTURAS, valsFacturas, 1000, { label: 'facturas', idIndex: 0 })
+      : { totals: {records:0,duplicates:0,warnings:0,changedRows:0,affectedRows:0} };
 
     // checkpoint al máximo APERTURA recibido (de GENERAL)
     let maxApertura = null;
@@ -441,23 +570,7 @@ ON DUPLICATE KEY UPDATE
       `desde:${desde.toISOString()}`
     ].join(' | '));
 
-    // 7) Loguea WARNINGS por batch (si hubo)
-    if (resGen.warningBatches.length) {
-      console.log('⚠️  WARNINGS general:');
-      for (const wb of resGen.warningBatches) {
-        console.log(`  - batch ${wb.batchIndex}`);
-        console.table(wb.warnings);
-      }
-    }
-    if (resFac.warningBatches.length) {
-      console.log('⚠️  WARNINGS facturas:');
-      for (const wb of resFac.warningBatches) {
-        console.log(`  - batch ${wb.batchIndex}`);
-        console.table(wb.warnings);
-      }
-    }
-
-    // 8) Cierres
+    // 7) Cierres
     await my.end();
     await mssqlPool.close();
   } catch (err) {

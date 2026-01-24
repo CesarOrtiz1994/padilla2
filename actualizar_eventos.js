@@ -111,6 +111,17 @@ const Q_EXISTENTES = `
 SELECT id_referencias FROM general
 `;
 
+// ---------- Función para sumar 6 horas a la fecha ----------
+function sumar6Horas(fecha) {
+  if (!fecha) return null;
+  
+  const date = new Date(fecha);
+  // Sumar 6 horas (6 * 60 * 60 * 1000 milisegundos)
+  date.setTime(date.getTime() + (6 * 60 * 60 * 1000));
+  
+  return date;
+}
+
 // ---------- Función para actualizar por lotes ----------
 async function actualizarPorLotes(conn, datos, tamanoLote = 100) {
   console.log(`\n===== INICIANDO ACTUALIZACIÓN DE EVENTOS =====`);
@@ -131,10 +142,12 @@ async function actualizarPorLotes(conn, datos, tamanoLote = 100) {
     console.log(`Procesando lote ${Math.floor(i / tamanoLote) + 1}/${Math.ceil(datos.length / tamanoLote)} (${lote.length} registros)`);
     
     for (const registro of lote) {
+      let query;
+      let params;
       try {
         // Construir la consulta de actualización para los eventos
-        let query = "UPDATE general SET ";
-        const params = [];
+        query = "UPDATE general SET ";
+        params = [];
         let tieneValores = false;
         
         // Agregar cada campo que no sea null
@@ -150,7 +163,8 @@ async function actualizarPorLotes(conn, datos, tamanoLote = 100) {
         for (const campo of camposEventos) {
           if (registro[campo] !== null && registro[campo] !== undefined) {
             actualizaciones.push(`${campo} = ?`);
-            params.push(registro[campo]);
+            // Sumar 6 horas antes de insertar
+            params.push(sumar6Horas(registro[campo]));
             tieneValores = true;
           }
         }

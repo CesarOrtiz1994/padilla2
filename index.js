@@ -64,6 +64,8 @@ function sumar6Horas(fecha) {
   if (!fecha) return null;
   
   const date = new Date(fecha);
+  // Descartar fechas inválidas tipo 1899-12-31
+  if (date.getFullYear() <= 1900) return null;
   // Sumar 6 horas (6 * 60 * 60 * 1000 milisegundos)
   date.setTime(date.getTime() + (6 * 60 * 60 * 1000));
   
@@ -346,7 +348,7 @@ WHERE r.FechaApertura > @fApertura
 GROUP BY
   r.NumeroDeReferencia, r.id_referencias, p.Pedimento, r.Operacion, re.regimen,
   a_origen.descripcion, a_llegada.descripcion, c_i.nombre, r.facturada, c_f.nombre,
-  aa.nombre, u.nombre, r.FechaApertura, r.Cancelada
+  aa.nombre, u.nombre, mt.descripcion, r.FechaApertura, r.Cancelada
 `;
 
 const Q_FACTURAS = `
@@ -368,7 +370,7 @@ WHERE r.FechaApertura > @fApertura
 const UP_GENERAL = `
 INSERT INTO general (
   NumeroDeReferencia, id_referencias, Pedimento, Operacion, Clave_pedimento, a_despacho, a_llegada,
-  C_Imp_Exp, facturada, Facturar_a, Agente_Aduanal, Ejecutivo, APERTURA,
+  C_Imp_Exp, facturada, Facturar_a, Agente_Aduanal, Ejecutivo, medio_trasporte, APERTURA,
   LLEGADA_MERCAN, ENTREGA_CLASIFICA, INICIO_CLASIFICA, TERMINO_CLASIFICA,
   INICIO_GLOSA, TERMINO_GLOSA, ENTREGA_GLOSA, PAGO_PEDIMENTO, DESPACHO_MERCAN,
   ENTREGA_FAC, FECHA_FAC, ENTREGA_FAC_CLI, ENTREGA_CAPTURA, INICIO_CAPTURA, 
@@ -489,6 +491,7 @@ ON DUPLICATE KEY UPDATE
       r.Facturar_a,
       r.Agente_Aduanal,
       r.Ejecutivo,
+      r.medio_trasporte,
       sumar6Horas(r.APERTURA),
       sumar6Horas(r.LLEGADA_MERCAN),
       sumar6Horas(r.ENTREGA_CLASIFICA),

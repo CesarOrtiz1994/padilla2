@@ -1,4 +1,4 @@
-// actualizar_medio_trasporte.js - Actualización de medio_trasporte
+// actualizar_medio_trasporte_historial.js - Actualización histórica de medio_trasporte
 require('dotenv').config();
 const sql = require('mssql');
 const mysql = require('mysql2/promise');
@@ -39,12 +39,16 @@ SELECT
 FROM referencias r
 LEFT JOIN PedimentosEncabezado p ON p.id_referencia = r.id_referencias
 LEFT JOIN MediosDeTransporte mt ON mt.IDMedioDeTransporte = p.IDTransporteEnt_Sal
-WHERE r.Cancelada = 0
+`;
+
+// ---------- Query para verificar registros existentes en MySQL ----------
+const Q_EXISTENTES = `
+SELECT id_referencias FROM general
 `;
 
 // ---------- Función para actualizar por lotes ----------
 async function actualizarPorLotes(conn, datos, tamanoLote = 100) {
-  console.log(`\n===== INICIANDO ACTUALIZACIÓN =====`);
+  console.log(`\n===== INICIANDO ACTUALIZACIÓN DE MEDIO_TRASPORTE =====`);
   console.log(`Fecha y hora de inicio: ${new Date().toISOString()}`);
   console.log(`Total de registros a procesar: ${datos.length}`);
   console.log(`Tamaño de lote: ${tamanoLote}`);
@@ -62,17 +66,12 @@ async function actualizarPorLotes(conn, datos, tamanoLote = 100) {
     console.log(`Procesando lote ${Math.floor(i / tamanoLote) + 1}/${Math.ceil(datos.length / tamanoLote)} (${lote.length} registros)`);
     
     for (const registro of lote) {
+      let query;
+      let params;
       try {
         // Construir la consulta de actualización para medio_trasporte
-        let query = "UPDATE general SET medio_trasporte = ?";
-        const params = [registro.medio_trasporte];
-        let tieneValores = registro.medio_trasporte != null;
-        
-        // Si no hay valores para actualizar, saltar este registro
-        if (!tieneValores) {
-          sinCambios++;
-          continue;
-        }
+        query = "UPDATE general SET medio_trasporte = ?";
+        params = [registro.medio_trasporte];
         
         // Agregar la condición WHERE
         query += " WHERE id_referencias = ?";
@@ -120,7 +119,7 @@ async function actualizarPorLotes(conn, datos, tamanoLote = 100) {
     console.log('Conectando a las bases de datos...');
     mssqlPool = await sql.connect(mssqlConfig);
     my = await mysql.createConnection(mysqlConfig);
-    await my.query("SET time_zone = '+00:00'"); // evitar sorpresas de TZ
+    await my.query("SET time_zone = '-06:00'"); // America/Mexico_City (UTC-6)
     
     console.log('Obteniendo datos de medio de transporte...');
     const req = new sql.Request(mssqlPool);
@@ -129,22 +128,29 @@ async function actualizarPorLotes(conn, datos, tamanoLote = 100) {
     
     console.log(`Se encontraron ${rows.length} registros con información de medio de transporte.`);
     
-    // Filtrar registros que tienen valor de medio_trasporte
-    const registrosConMedio = rows.filter(r => r.medio_trasporte != null);
+    // Obtener IDs de registros existentes en MySQL
+    console.log('Obteniendo IDs de registros existentes en MySQL...');
+    const [existentesResult] = await my.query(Q_EXISTENTES);
+    const idsExistentes = new Set(existentesResult.map(r => r.id_referencias));
     
-    console.log(`De los cuales ${registrosConMedio.length} tienen un valor válido para medio_trasporte.`);
+    console.log(`Se encontraron ${idsExistentes.size} registros existentes en MySQL.`);
+    
+    // Filtrar registros que existen en MySQL
+    const registrosExistentes = rows.filter(r => idsExistentes.has(r.id_referencias));
+    
+    console.log(`De los cuales ${registrosExistentes.length} existen en la base de datos MySQL.`);
     
     console.log('\n===== INICIANDO ACTUALIZACIÓN DE REGISTROS =====');
     console.log(`Fecha y hora: ${new Date().toISOString()}`);
     
     // Actualizar los registros en MySQL
-    const resultado = await actualizarPorLotes(my, registrosConMedio);
+    const resultado = await actualizarPorLotes(my, registrosExistentes);
     
     console.log('\n\n===== RESUMEN FINAL =====');
     console.log(`⏰ Fecha y hora de finalización: ${new Date().toISOString()}`);
     console.log(`⏱ Tiempo total de ejecución: ${resultado.tiempoTotal.toFixed(2)} segundos`);
     console.log(`📈 Estadísticas:`);
-    console.log(`   - Total de registros procesados: ${registrosConMedio.length}`);
+    console.log(`   - Total de registros procesados: ${registrosExistentes.length}`);
     console.log(`   - Registros actualizados: ${resultado.actualizados}`);
     console.log(`   - Registros sin cambios: ${resultado.sinCambios}`);
     console.log(`   - Errores: ${resultado.errores}`);

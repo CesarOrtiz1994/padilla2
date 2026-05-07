@@ -62,7 +62,7 @@ const { runEtlFacturas } = require('./src/jobs/etlFacturas');
     const genWarnings = Object.keys(resGen.warningsSummary || {}).length;
     const facWarnings = Object.keys(resFac.warningsSummary || {}).length;
     if (genWarnings > 0 || facWarnings > 0) {
-      console.log('\n WARNINGS DETECTADOS - Revisar logs arriba para detalles y soluciones sugeridas');
+      console.log('\nWARNINGS DETECTADOS - Revisar logs arriba para detalles y soluciones sugeridas');
     }
 
     // 6) Cierres

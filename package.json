@@ -7,15 +7,21 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "run-once": "node index.js",
     "start": "node scheduler.js",
+    "start-gastos": "node scheduler-gastos.js",
     "corregir-fechas": "node scripts/corregir_fechas_eventos.js",
-    "test-eventos": "node test/test_eventos.js"
+    "test-eventos": "node test/test_eventos.js",
+    "test-xml": "node test/test-xml-parser.js",
+    "cargar-historico-gastos": "node scripts/cargar_historico_gastos.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "basic-ftp": "^5.0.0",
     "dotenv": "^17.2.1",
+    "fast-xml-parser": "^5.2.2",
     "mssql": "^11.0.1",
     "mysql2": "^3.14.3",
-    "node-cron": "^4.2.1"
+    "node-cron": "^4.2.1",
+    "ssh2-sftp-client": "^12.1.1"
   }
 }

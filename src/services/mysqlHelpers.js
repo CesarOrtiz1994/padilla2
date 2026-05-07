@@ -124,7 +124,7 @@ async function upsertChunks(conn, query, data, size = 1000, opts = {}) {
       // Log solo los primeros 3 warnings únicos por batch para no saturar
       const uniqueWarnings = Object.entries(warnDetails.summary).slice(0, 3);
       for (const [msg, count] of uniqueWarnings) {
-        console.log(`⚠️  BATCH ${label} #${batchIndex} warning [${count}x]: ${msg.substring(0, 100)}`);
+        console.log(`WARN BATCH ${label} #${batchIndex} warning [${count}x]: ${msg.substring(0, 100)}`);
       }
     }
 
@@ -143,11 +143,11 @@ async function upsertChunks(conn, query, data, size = 1000, opts = {}) {
 
   // Análisis final de warnings
   if (Object.keys(allWarningsSummary).length > 0) {
-    console.log(`\n RESUMEN DE WARNINGS (${label}):`);
+    console.log(`\nRESUMEN DE WARNINGS (${label}):`);
     const issues = analyzeWarnings(allWarningsSummary);
     for (const issue of issues) {
-      console.log(`   [${issue.type}] ${issue.count} ocurrencias: ${issue.message}`);
-      console.log(`   → Solución: ${issue.solution}`);
+      console.log(`  [${issue.type}] ${issue.count} ocurrencias: ${issue.message}`);
+      console.log(`  -> Solucion: ${issue.solution}`);
     }
   }
 

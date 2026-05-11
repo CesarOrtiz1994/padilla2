@@ -87,6 +87,7 @@ function analyzeWarnings(summary) {
 async function upsertChunks(conn, query, data, size = 1000, opts = {}) {
   const totals = { records: 0, duplicates: 0, warnings: 0, changedRows: 0, affectedRows: 0 };
   const allWarningsSummary = {};
+  const warningFilas = []; // acumula detalles de filas con warning para el resumen final
 
   const label = opts.label || 'upsert';
   const idIndex = Number.isInteger(opts.idIndex) ? opts.idIndex : null;
@@ -121,10 +122,19 @@ async function upsertChunks(conn, query, data, size = 1000, opts = {}) {
       for (const [key, count] of Object.entries(warnDetails.summary)) {
         allWarningsSummary[key] = (allWarningsSummary[key] || 0) + count;
       }
-      // Log solo los primeros 3 warnings únicos por batch para no saturar
-      const uniqueWarnings = Object.entries(warnDetails.summary).slice(0, 3);
-      for (const [msg, count] of uniqueWarnings) {
-        console.log(`WARN BATCH ${label} #${batchIndex} warning [${count}x]: ${msg.substring(0, 100)}`);
+      // Acumular detalles de fila para mostrar en resumen final
+      for (const w of warnDetails.details) {
+        const rowMatch = /at row (\d+)/i.exec(w.message);
+        const rowNum = rowMatch ? parseInt(rowMatch[1], 10) : null;
+        const fila = rowNum != null ? part[rowNum - 1] : null;
+        warningFilas.push({
+          batch: batchIndex,
+          rowNum,
+          mensaje: w.message,
+          ref: fila ? (fila[0] ?? 'N/A') : 'N/A',
+          archivo: fila ? (fila[1] ?? 'N/A') : 'N/A',
+          importe: fila ? (fila[2] ?? 'N/A') : 'N/A'
+        });
       }
     }
 
@@ -148,6 +158,13 @@ async function upsertChunks(conn, query, data, size = 1000, opts = {}) {
     for (const issue of issues) {
       console.log(`  [${issue.type}] ${issue.count} ocurrencias: ${issue.message}`);
       console.log(`  -> Solucion: ${issue.solution}`);
+    }
+    if (warningFilas.length > 0) {
+      console.log(`\n  Filas con warnings:`);
+      for (const wf of warningFilas) {
+        console.log(`  [batch #${wf.batch} row ${wf.rowNum}] ref=${wf.ref} archivo=${wf.archivo} importe=${wf.importe}`);
+        console.log(`    -> ${wf.mensaje}`);
+      }
     }
   }
 

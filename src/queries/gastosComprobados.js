@@ -25,7 +25,6 @@ INSERT INTO ftp_adicional (
   referencia, archivo_xml, importe, concepto, descripcion, observaciones
 ) VALUES ? AS new
 ON DUPLICATE KEY UPDATE
-  importe = new.importe,
   descripcion = new.descripcion,
   observaciones = new.observaciones;
 `;

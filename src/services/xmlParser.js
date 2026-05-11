@@ -32,7 +32,7 @@ function parseConceptosGastos(xmlBuffer) {
 
     for (const concepto of conceptos) {
       const desc = (concepto.Descripcion || concepto.descripcion || '').toUpperCase();
-      const importe = parseFloat(concepto.Importe || concepto.importe || 0);
+      const importe = Math.round(parseFloat(concepto.Importe || concepto.importe || 0) * 10000) / 10000;
 
       if (!desc || importe <= 0) continue;
 
@@ -122,7 +122,30 @@ function agruparConceptosPorTipo(conceptos) {
   return Object.values(agrupados);
 }
 
+// Limite maximo para columna DECIMAL(15,2) en MySQL
+const IMPORTE_MAX = 9999999999999.99;
+
+/**
+ * Valida un concepto antes de insertar en BD.
+ * Retorna null si es valido, o string con el motivo del problema.
+ */
+function validarConcepto(concepto, referencia, archivo) {
+  const { importe, descripcion } = concepto;
+
+  if (importe > IMPORTE_MAX) {
+    return `ALERTA importe fuera de rango: ref=${referencia} archivo=${archivo} concepto=${concepto.concepto} importe=${importe} (max permitido=${IMPORTE_MAX})`;
+  }
+  if (importe < 0) {
+    return `ALERTA importe negativo: ref=${referencia} archivo=${archivo} concepto=${concepto.concepto} importe=${importe}`;
+  }
+  if (!descripcion || descripcion.length === 0) {
+    return `ALERTA descripcion vacia: ref=${referencia} archivo=${archivo} concepto=${concepto.concepto}`;
+  }
+  return null;
+}
+
 module.exports = {
   parseConceptosGastos,
-  agruparConceptosPorTipo
+  agruparConceptosPorTipo,
+  validarConcepto
 };

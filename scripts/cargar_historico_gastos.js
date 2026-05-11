@@ -10,10 +10,10 @@ const path = require('path');
 const { mssqlConfig, mysqlConfig } = require('../src/config/database');
 const { Q_GASTOS_COMPROBADOS, UPSERT_FTP_ADICIONAL } = require('../src/queries/gastosComprobados');
 const { SFTPService } = require('../src/services/sftpClient');
-const { parseConceptosGastos } = require('../src/services/xmlParser');
+const { parseConceptosGastos, validarConcepto } = require('../src/services/xmlParser');
 const { upsertChunks } = require('../src/services/mysqlHelpers');
 
-// Modificar query para traer desde 1 enero 2026
+// Query completa sin restriccion de fecha para cargar todo el historico
 const Q_HISTORICO_GASTOS = `
 SELECT 
     d.nombreSistema, 
@@ -130,6 +130,12 @@ async function cargarHistorico() {
 
         // Crear un registro por cada concepto individual encontrado
         for (const c of conceptos) {
+          const alerta = validarConcepto(c, numRef, fileName);
+          if (alerta) {
+            console.warn(`[HISTORICO]   ${alerta}`);
+            errores.push({ referencia: numRef, archivo: fileName, error: alerta });
+            continue;
+          }
           console.log(`[HISTORICO]   → ${c.concepto}: $${c.importe.toFixed(2)} | ${c.descripcion.substring(0, 50)}`);
           valoresTotal.push([
             numRef,
@@ -158,7 +164,8 @@ async function cargarHistorico() {
         idIndex: 0
       });
       await my.commit();
-      console.log(`[HISTORICO] Insertados: ${res.totals.records}`);
+      const nuevos = res.totals.records - res.totals.duplicates;
+      console.log(`[HISTORICO] Resultado: ${nuevos} nuevos | ${res.totals.changedRows} actualizados | ${res.totals.duplicates - res.totals.changedRows} sin cambios | total procesados: ${res.totals.records}`);
     }
 
     // Resumen

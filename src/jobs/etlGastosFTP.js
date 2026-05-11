@@ -8,7 +8,7 @@ const { mssqlConfig, mysqlConfig } = require('../config/database');
 const { ftpConfig } = require('../config/ftp');
 const { Q_GASTOS_COMPROBADOS, UPSERT_FTP_ADICIONAL } = require('../queries/gastosComprobados');
 const { SFTPService } = require('../services/sftpClient');
-const { parseConceptosGastos } = require('../services/xmlParser');
+const { parseConceptosGastos, validarConcepto } = require('../services/xmlParser');
 const { upsertChunks } = require('../services/mysqlHelpers');
 const { chunk } = require('../utils/arrays');
 
@@ -126,6 +126,12 @@ async function runEtlGastosFTP() {
 
         // Crear un registro por cada concepto individual encontrado
         for (const c of conceptos) {
+          const alerta = validarConcepto(c, numRef, fileName);
+          if (alerta) {
+            console.warn(`[ETL-FTP]   ${alerta}`);
+            errores.push({ referencia: numRef, archivo: fileName, error: alerta });
+            continue;
+          }
           valoresTotal.push([
             numRef,
             fileName,
@@ -157,7 +163,8 @@ async function runEtlGastosFTP() {
 
       await my.commit();
 
-      console.log(`[ETL-FTP] Upsert completado: ${res.totals.records} registros, ${res.totals.warnings} warnings`);
+      const nuevos = res.totals.records - res.totals.duplicates;
+      console.log(`[ETL-FTP] Resultado: ${nuevos} nuevos | ${res.totals.changedRows} actualizados | ${res.totals.duplicates - res.totals.changedRows} sin cambios | total procesados: ${res.totals.records}`);
     } else {
       console.log('[ETL-FTP] No hay registros para insertar');
     }

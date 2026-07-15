@@ -11,7 +11,9 @@
     "corregir-fechas": "node scripts/corregir_fechas_eventos.js",
     "test-eventos": "node test/test_eventos.js",
     "test-xml": "node test/test-xml-parser.js",
-    "cargar-historico-gastos": "node scripts/cargar_historico_gastos.js"
+    "cargar-historico-gastos": "node scripts/cargar_historico_gastos.js",
+    "rastrear-referencia": "node scripts/rastrear_referencia.js",
+    "forzar-referencia": "node scripts/forzar_referencia.js"
   },
   "author": "",
   "license": "ISC",

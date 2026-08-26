@@ -1,11 +1,9 @@
-// src/queries/gastosComprobados.js - Queries para gastos comprobados
-
 const Q_GASTOS_COMPROBADOS = `
-SELECT 
-    d.nombreSistema, 
-    d.nombreOriginal, 
-    g.id_referencia, 
-    g.concepto, 
+SELECT
+    d.nombreSistema,
+    d.nombreOriginal,
+    g.id_referencia,
+    g.concepto,
     g.Adicional,
     r.facturada,
     r.FechaDeModificacion,
@@ -29,4 +27,4 @@ ON DUPLICATE KEY UPDATE
   observaciones = new.observaciones;
 `;
 
-module.exports = { Q_GASTOS_COMPROBADOS, UPSERT_FTP_ADICIONAL };
+export { Q_GASTOS_COMPROBADOS, UPSERT_FTP_ADICIONAL };

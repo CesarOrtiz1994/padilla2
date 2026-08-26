@@ -1,5 +1,3 @@
-// src/queries/facturas.js - Queries para tabla facturas
-
 const Q_FACTURAS = `
 SELECT
   r.id_referencias,
@@ -28,4 +26,4 @@ ON DUPLICATE KEY UPDATE
   Valor_USD=new.Valor_USD;
 `;
 
-module.exports = { Q_FACTURAS, UP_FACTURAS };
+export { Q_FACTURAS, UP_FACTURAS };

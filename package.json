@@ -4,16 +4,18 @@
   "description": "se encarga de extarer informacion de una bd posgrestd y pasarla a un maria db",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "run-once": "node index.js",
-    "start": "node scheduler.js",
-    "start-gastos": "node scheduler-gastos.js",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "run-once": "tsx index.ts",
+    "start": "tsx scheduler.ts",
+    "start-gastos": "tsx scheduler-gastos.ts",
     "corregir-fechas": "node scripts/corregir_fechas_eventos.js",
     "test-eventos": "node test/test_eventos.js",
     "test-xml": "node test/test-xml-parser.js",
     "cargar-historico-gastos": "node scripts/cargar_historico_gastos.js",
     "rastrear-referencia": "node scripts/rastrear_referencia.js",
-    "forzar-referencia": "node scripts/forzar_referencia.js"
+    "forzar-referencia": "node scripts/forzar_referencia.js",
+    "reprocesar-por-fecha": "node scripts/reprocesar_por_fecha.js"
   },
   "author": "",
   "license": "ISC",
@@ -25,5 +27,11 @@
     "mysql2": "^3.14.3",
     "node-cron": "^4.2.1",
     "ssh2-sftp-client": "^12.1.1"
+  },
+  "devDependencies": {
+    "@types/mssql": "^12.3.0",
+    "@types/node": "^26.3.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
   }
 }

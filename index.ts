@@ -1,25 +1,22 @@
-// index.js - Orquestador principal del ETL
-require('dotenv').config();
-const sql = require('mssql');
-const mysql = require('mysql2/promise');
+import 'dotenv/config';
+import * as sql from 'mssql';
+import mysql from 'mysql2/promise';
+import { mssqlConfig, mysqlConfig } from './src/config/database';
+import { ACOLCHADO_DIAS, DEBUG_REF_ID } from './src/config/constants';
+import { getCheckpoint, setCheckpoint } from './src/services/checkpoint';
+import { debugReferencia } from './src/services/debug';
+import { runEtlGeneral } from './src/jobs/etlGeneral';
+import { runEtlFacturas } from './src/jobs/etlFacturas';
 
-const { mssqlConfig, mysqlConfig } = require('./src/config/database');
-const { ACOLCHADO_DIAS, DEBUG_REF_ID } = require('./src/config/constants');
-const { getCheckpoint, setCheckpoint } = require('./src/services/checkpoint');
-const { debugReferencia } = require('./src/services/debug');
-const { runEtlGeneral } = require('./src/jobs/etlGeneral');
-const { runEtlFacturas } = require('./src/jobs/etlFacturas');
-
-// ---------- Orquestador principal ----------
 (async () => {
-  let mssqlPool, my;
+  let mssqlPool: sql.ConnectionPool | undefined;
+  let my: mysql.Connection | undefined;
   try {
     console.log('Conectando...');
     mssqlPool = await sql.connect(mssqlConfig);
     my = await mysql.createConnection(mysqlConfig);
     await my.query("SET time_zone = '-06:00'");
 
-    // 1) Lee checkpoint y calcula ventana
     const lastDt = await getCheckpoint(my);
     const desde = new Date(lastDt.getTime() - ACOLCHADO_DIAS * 86400000);
 
@@ -29,18 +26,15 @@ const { runEtlFacturas } = require('./src/jobs/etlFacturas');
 
     await debugReferencia(mssqlPool, my, desde);
 
-    // 2) Ejecutar jobs ETL
     await my.beginTransaction();
 
     const resGen = await runEtlGeneral(mssqlPool, my, desde);
     const resFac = await runEtlFacturas(mssqlPool, my, desde);
 
-    // 3) Actualizar checkpoint
     if (resGen.maxApertura) await setCheckpoint(my, resGen.maxApertura);
 
     await my.commit();
 
-    // 4) Logs de métricas
     const statsGen = resGen.stats;
     const statsFac = resFac.stats;
     const insertedGen = statsGen.records - statsGen.duplicates;
@@ -55,24 +49,22 @@ const { runEtlFacturas } = require('./src/jobs/etlFacturas');
       `upsert_total=${statsFac.records} inserted=${insertedFac} ` +
       `updated_attempted=${statsFac.duplicates} updated_changed=${statsFac.changedRows} warnings=${statsFac.warnings}`,
       `watermark->${resGen.maxApertura ? resGen.maxApertura.toISOString() : 'N/A'}`,
-      `desde:${desde.toISOString()}`
+      `desde:${desde.toISOString()}`,
     ].join(' | '));
 
-    // 5) Mostrar warnings si hay
-    const genWarnings = Object.keys(resGen.warningsSummary || {}).length;
-    const facWarnings = Object.keys(resFac.warningsSummary || {}).length;
+    const genWarnings = Object.keys(resGen.warningsSummary ?? {}).length;
+    const facWarnings = Object.keys(resFac.warningsSummary ?? {}).length;
     if (genWarnings > 0 || facWarnings > 0) {
       console.log('\nWARNINGS DETECTADOS - Revisar logs arriba para detalles y soluciones sugeridas');
     }
 
-    // 6) Cierres
     await my.end();
     await mssqlPool.close();
   } catch (err) {
-    try { if (my) await my.rollback(); } catch (e) { /* noop */ }
+    try { if (my) await my.rollback(); } catch { /* noop */ }
     console.error('ETL ERROR:', err);
-    try { if (my) await my.end(); } catch (e) { /* noop */ }
-    try { if (mssqlPool) await mssqlPool.close(); } catch (e) { /* noop */ }
+    try { if (my) await my.end(); } catch { /* noop */ }
+    try { if (mssqlPool) await mssqlPool.close(); } catch { /* noop */ }
     process.exit(1);
   }
 })();

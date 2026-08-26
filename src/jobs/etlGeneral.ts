@@ -1,22 +1,20 @@
-// src/jobs/etlGeneral.js - Job ETL para tabla general
-const sql = require('mssql');
-const { Q_GENERAL, UP_GENERAL } = require('../queries/general');
-const { sumar6Horas } = require('../utils/dates');
-const { safeMoneyValue } = require('../utils/money');
-const { upsertChunks } = require('../services/mysqlHelpers');
-const { DEBUG_REF_ID } = require('../config/constants');
+import * as sql from 'mssql';
+import type { Connection } from 'mysql2/promise';
+import { Q_GENERAL, UP_GENERAL } from '../queries/general';
+import { sumar6Horas } from '../utils/dates';
+import { safeMoneyValue } from '../utils/money';
+import { upsertChunks } from '../services/mysqlHelpers';
+import { DEBUG_REF_ID } from '../config/constants';
+import type { GeneralRow, EtlGeneralResult } from '../types';
 
-/**
- * Ejecuta el ETL para la tabla general
- * @param {Object} mssqlPool - Pool de conexión MSSQL
- * @param {Object} mysqlConn - Conexión MySQL
- * @param {Date} desde - Fecha desde para filtrar
- * @returns {Object} Estadísticas de la operación
- */
-async function runEtlGeneral(mssqlPool, mysqlConn, desde) {
+async function runEtlGeneral(
+  mssqlPool: sql.ConnectionPool,
+  mysqlConn: Connection,
+  desde: Date
+): Promise<EtlGeneralResult> {
   const req = new sql.Request(mssqlPool);
   req.input('fApertura', sql.DateTime, desde);
-  const rs = await req.query(Q_GENERAL);
+  const rs = await req.query<GeneralRow>(Q_GENERAL);
   const rows = rs.recordset;
   const selectedGeneral = rows.length;
 
@@ -33,8 +31,7 @@ async function runEtlGeneral(mssqlPool, mysqlConn, desde) {
   const cleanRows = rows.filter(r => r.id_referencias != null);
   const droppedGeneral = selectedGeneral - cleanRows.length;
 
-  // Mapear VALUES con transformaciones
-  const vals = cleanRows.map(r => ([
+  const vals = cleanRows.map(r => [
     r.NumeroDeReferencia,
     r.id_referencias,
     r.Pedimento,
@@ -69,18 +66,16 @@ async function runEtlGeneral(mssqlPool, mysqlConn, desde) {
     safeMoneyValue(r.Total_DTA, 'Total_DTA'),
     safeMoneyValue(r.Total_IVA, 'Total_IVA'),
     safeMoneyValue(r.Total_Imp, 'Total_Imp'),
-    r.Cancelada
-  ]));
+    r.Cancelada,
+  ]);
 
   const prepared = vals.length;
 
-  // Ejecutar upserts
   const res = prepared
     ? await upsertChunks(mysqlConn, UP_GENERAL, vals, 1000, { label: 'general', idIndex: 1 })
-    : { totals: { records: 0, duplicates: 0, warnings: 0, changedRows: 0, affectedRows: 0 } };
+    : { totals: { records: 0, duplicates: 0, warnings: 0, changedRows: 0, affectedRows: 0 }, warningsSummary: {} };
 
-  // Calcular máxima fecha de apertura para checkpoint
-  let maxApertura = null;
+  let maxApertura: Date | null = null;
   for (const r of cleanRows) {
     if (r.APERTURA && (!maxApertura || r.APERTURA > maxApertura)) maxApertura = r.APERTURA;
   }
@@ -91,8 +86,8 @@ async function runEtlGeneral(mssqlPool, mysqlConn, desde) {
     dropped: droppedGeneral,
     prepared,
     maxApertura,
-    warningsSummary: res.warningsSummary || {}
+    warningsSummary: res.warningsSummary ?? {},
   };
 }
 
-module.exports = { runEtlGeneral };
+export { runEtlGeneral };

@@ -144,7 +144,59 @@ export interface EtlGasFTPResult {
   errorDetails: EtlGasFTPError[];
 }
 
-// ── XML parser ───────────────────────────────────────────────────────────────
+// ── Usyncro API ──────────────────────────────────────────────────────────────
+
+export interface UsyncroRecord {
+  id: string;
+}
+
+export interface UsyncroActor {
+  id: string;
+  attributes: {
+    subtype: string;
+    recordReference: string | null;
+    name: string | null;
+    email: string | null;
+    legalId: string | null;
+    contactName: string | null;
+    contactEmail: string | null;
+  };
+}
+
+export interface UsyncroPlace {
+  id: string;
+  attributes: {
+    subtype: string;
+  };
+}
+
+export interface UsyncroActorsResponse {
+  data: UsyncroActor[];
+}
+
+export interface UsyncroPlacesResponse {
+  data: UsyncroPlace[];
+}
+
+// IDs de actores y places guardados en MySQL
+export interface UsyncroRegistro {
+  numero_referencia: string;
+  id_cliente: number;
+  record_id: string;
+  actor_creator_id: string | null;
+  actor_manager_id: string | null;
+  actor_buyer_id: string | null;
+  actor_supplier_id: string | null;
+  actor_customs_broker_id: string | null;
+  actor_transporter_id: string | null;
+  actor_notify_id: string | null;
+  actor_taxes_id: string | null;
+  place_origin_id: string | null;
+  place_destination_id: string | null;
+  place_delivery_id: string | null;
+  place_pickup_id: string | null;
+}
+
 
 export interface ConceptoGasto {
   concepto: 'ALMACENAJE' | 'DEMORA';

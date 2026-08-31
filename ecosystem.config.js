@@ -11,6 +11,7 @@ const appsTsx = [
 const appsDist = [
   { name: 'scheduler',        script: 'dist/scheduler.js',        interpreter: 'node', cwd, watch: false, autorestart: true },
   { name: 'scheduler-gastos', script: 'dist/scheduler-gastos.js', interpreter: 'node', cwd, watch: false, autorestart: true },
+  { name: 'scheduler-usyncro', script: 'dist/scheduler-usyncro.js', interpreter: 'node', cwd, watch: false, autorestart: true },
 ];
 
 // Cambia a appsTsx si prefieres correr sin build

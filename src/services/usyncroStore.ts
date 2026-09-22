@@ -8,6 +8,24 @@ export async function getRegistro(conn: Connection, ref: string): Promise<Usyncr
   return (rows[0] as UsyncroRegistro) ?? null;
 }
 
+// Placeholder: reserva la referencia mientras espera taxes completo (sin record_id aún).
+// Entra automáticamente al rescate de getReferenciasPendientes sin depender de la ventana.
+export async function insertPendienteCreacion(conn: Connection, ref: string, idCliente: number): Promise<void> {
+  await conn.query(
+    `INSERT IGNORE INTO usyncro_registros (numero_referencia, id_cliente, record_id)
+     VALUES (?, ?, NULL)`,
+    [ref, idCliente]
+  );
+}
+
+// Elimina el placeholder cuando la referencia se marca como creación omitida (ya no se rescatará)
+export async function eliminarRegistroPendiente(conn: Connection, ref: string): Promise<void> {
+  await conn.query(
+    'DELETE FROM usyncro_registros WHERE numero_referencia = ? AND record_id IS NULL',
+    [ref]
+  );
+}
+
 export async function insertRegistro(
   conn: Connection,
   ref: string,
@@ -79,6 +97,17 @@ export async function marcarCampoOk(conn: Connection, ref: string, campo: string
   );
 }
 
+// Cierra un campo que nunca tendrá datos: cuenta como sincronizado y deja el motivo registrado
+export async function marcarCampoOmitido(conn: Connection, ref: string, campo: string, motivo: string): Promise<void> {
+  const nota = `OMITIDO: ${motivo}`;
+  await conn.query(
+    `INSERT INTO usyncro_sync_estado (numero_referencia, campo, sincronizado, sincronizado_en, ultimo_error)
+     VALUES (?, ?, 1, NOW(), ?)
+     ON DUPLICATE KEY UPDATE sincronizado=1, sincronizado_en=NOW(), ultimo_error=?`,
+    [ref, campo, nota, nota]
+  );
+}
+
 export async function marcarCampoError(conn: Connection, ref: string, campo: string, error: string): Promise<void> {
   await conn.query(
     `INSERT INTO usyncro_sync_estado (numero_referencia, campo, sincronizado, intentos, ultimo_error)
@@ -88,10 +117,38 @@ export async function marcarCampoError(conn: Connection, ref: string, campo: str
   );
 }
 
+// Referencias pendientes + completadas recientemente (gracia para facturas tardías)
+export async function getReferenciasPendientes(conn: Connection, graciaInvoicesDias: number): Promise<string[]> {
+  const [rows] = await conn.query<RowDataPacket[]>(
+    `SELECT numero_referencia FROM usyncro_registros
+     WHERE fecha_completado IS NULL
+        OR fecha_completado > DATE_SUB(NOW(), INTERVAL ? DAY)`,
+    [graciaInvoicesDias]
+  );
+  return (rows as Array<{ numero_referencia: string }>).map(r => r.numero_referencia);
+}
+
 export async function marcarCompletado(conn: Connection, ref: string): Promise<void> {
   await conn.query(
     'UPDATE usyncro_registros SET fecha_completado = NOW() WHERE numero_referencia = ? AND fecha_completado IS NULL',
     [ref]
+  );
+}
+
+// Referencias parciales que nunca se crearán en Usyncro (taxes incompleto tras la gracia)
+export async function estaCreacionOmitida(conn: Connection, ref: string): Promise<boolean> {
+  const [rows] = await conn.query<RowDataPacket[]>(
+    'SELECT 1 FROM usyncro_creacion_omitida WHERE numero_referencia = ? LIMIT 1', [ref]
+  );
+  return rows.length > 0;
+}
+
+export async function marcarCreacionOmitida(conn: Connection, ref: string, motivo: string): Promise<void> {
+  await conn.query(
+    `INSERT INTO usyncro_creacion_omitida (numero_referencia, motivo)
+     VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE motivo=?`,
+    [ref, motivo, motivo]
   );
 }
 

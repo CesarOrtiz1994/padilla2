@@ -110,10 +110,10 @@ if (!numRef) {
 
     let registro = await getRegistro(my, numRef);
 
-    if (registro) {
+    if (registro?.record_id) {
       console.log(`\n[4] Record ya existe en MySQL → record_id: ${registro.record_id}`);
     } else {
-      console.log('\n[4] Creando record en Usyncro...');
+      console.log('\n[4] Creando record en Usyncro (forzado, ignora la regla de referencias parciales)...');
       const recordId = await client.createRecord(numRef);
       console.log(`    ✔ Record creado → ID: ${recordId}`);
       console.log('\n[5] Obteniendo actores...');
@@ -125,6 +125,11 @@ if (!numRef) {
       await insertRegistro(my, numRef, ref.id_cliente, recordId, actores, places);
       registro = (await getRegistro(my, numRef))!;
       console.log('\n[7] Guardado en MySQL ✔');
+    }
+
+    if (!registro.record_id) {
+      console.error('\n[ERROR] registro sin record_id inesperado');
+      return;
     }
 
     // ── [8] creator.recordReference ───────────────────────────────
@@ -202,56 +207,61 @@ if (!numRef) {
       console.log(`    ⚠ place_destination_id=${registro.place_destination_id} descripcion_aduana=${ref.descripcion_aduana}`);
     }
 
-    // ── [12] taxes ────────────────────────────────────────────────
-    console.log(`\n[12] taxes (${registro.actor_taxes_id})...`);
+    // ── [12a] taxes.name ────────────────────────────────────────────────
+    console.log(`\n[12a] taxes.name (${registro.actor_taxes_id})...`);
+    if (registro.actor_taxes_id && ref.descripcion_aduana) {
+      if (await isCampoSincronizado(my, numRef, 'taxes.name')) {
+        console.log('    ✔ Ya sincronizado');
+      } else {
+        try {
+          await client.updateActor(registro.record_id, registro.actor_taxes_id, { name: ref.descripcion_aduana });
+          await marcarCampoOk(my, numRef, 'taxes.name');
+          console.log(`    ✔ taxes.name = ${ref.descripcion_aduana}`);
+        } catch (e) {
+          await marcarCampoError(my, numRef, 'taxes.name', (e as Error).message);
+          console.error('    ✘', (e as Error).message);
+        }
+      }
+    } else console.log(`    ⚠ sin descripcion_aduana`);
+
+    // ── [12b] taxes taxesData (atómico — requiere customsNumber completo) ─
+    console.log(`\n[12b] taxes taxesData...`);
     if (registro.actor_taxes_id) {
-      const yaHechos = await getCamposSincronizadosSet(my, numRef, ['taxes.name', 'taxes.taxesData']);
-      const actorData: Record<string, unknown> = {};
-      const camposEnviados: string[] = [];
+      const TAXESDATA_CAMPOS = ['taxes.customsClearance', 'taxes.customsClearanceDate', 'taxes.customsNumber'];
+      const yaHechos = await getCamposSincronizadosSet(my, numRef, TAXESDATA_CAMPOS);
+      const todosHechos = TAXESDATA_CAMPOS.every(c => yaHechos.has(c));
 
-      if (!yaHechos.has('taxes.name') && ref.descripcion_aduana) {
-        actorData.name = ref.descripcion_aduana;
-        camposEnviados.push('taxes.name');
-      } else console.log(`    taxes.name: ${yaHechos.has('taxes.name') ? '✔ ya sincronizado' : '⚠ sin datos'}`);
-
-      if (yaHechos.has('taxes.taxesData')) {
-        console.log('    taxes.taxesData: ✔ ya sincronizado');
+      if (todosHechos) {
+        console.log('    ✔ Ya sincronizado');
       } else if (!ref.clearance_date) {
-        console.log('    taxes.taxesData: ⚠ clearance_date null — quedará pendiente');
-      } else if (ref.Primer_Reconocimiento == null) {
-        console.log('    taxes.taxesData: ⚠ Primer_Reconocimiento null — quedará pendiente');
+        console.log('    ⚠ clearance_date null — quedará pendiente');
       } else {
         const year2 = ref.FechaApertura ? new Date(ref.FechaApertura).getFullYear().toString().slice(-2) : null;
         const codigo = ref.codigo_aduana != null ? String(ref.codigo_aduana).trim() : null;
         const patente = ref.patente_agente != null ? String(ref.patente_agente).trim() : null;
         const pedimento = ref.pedimento != null ? String(ref.pedimento).trim() : null;
         console.log(`    customsNumber → year2=${year2} codigo=${codigo} patente=${patente} pedimento=${pedimento}`);
-        if (year2 && codigo && patente && pedimento && pedimento !== '0') {
-          actorData.taxesData = {
+
+        if (!year2 || !codigo || !patente || !pedimento || pedimento === '0') {
+          console.log('    ⚠ customsNumber incompleto — quedará pendiente');
+        } else {
+          const taxesData = {
             customsClearance: ref.Primer_Reconocimiento === 0 ? 'green' : 'red',
             customsClearanceDate: new Date(ref.clearance_date).toISOString().split('T')[0],
             customsNumber: `${year2} ${codigo} ${patente} ${pedimento}`,
             containers: [], invoices: [], deliveryNotes: [],
             goods: [], stockKeepingUnits: [], notes: '',
           };
-          camposEnviados.push('taxes.taxesData');
-        } else {
-          console.log('    ⚠ customsNumber incompleto — quedará pendiente');
+          console.log('\n    Body enviado:');
+          console.log(JSON.stringify({ data: { taxesData }, meta: {} }, null, 4));
+          try {
+            await client.updateActor(registro.record_id, registro.actor_taxes_id, { taxesData });
+            for (const c of TAXESDATA_CAMPOS) { await marcarCampoOk(my, numRef, c); console.log(`    ✔ ${c}`); }
+          } catch (e) {
+            for (const c of TAXESDATA_CAMPOS) await marcarCampoError(my, numRef, c, (e as Error).message);
+            console.error('    ✘', (e as Error).message);
+          }
         }
-      }
-
-      if (camposEnviados.length > 0) {
-        console.log('\n    Body enviado:');
-        console.log(JSON.stringify({ data: actorData, meta: {} }, null, 4));
-        try {
-          await client.updateActor(registro.record_id, registro.actor_taxes_id, actorData);
-          for (const c of camposEnviados) { await marcarCampoOk(my, numRef, c); console.log(`    ✔ ${c}`); }
-        } catch (e) {
-          for (const c of camposEnviados) await marcarCampoError(my, numRef, c, (e as Error).message);
-          console.error('    ✘', (e as Error).message);
-        }
-      } else {
-        console.log('    Todos los campos ya sincronizados o sin datos disponibles');
       }
     }
 

@@ -20,7 +20,13 @@ function runJob(): void {
   const started = new Date();
   console.log(`[Scheduler-Usyncro] ETL-Usyncro start ${started.toISOString()}`);
 
-  const child = execFile(interpreter, [script], { env: process.env });
+  // Este scheduler usa la cuenta alterna de Usyncro (EMAIL2/API_KEY2), a diferencia del resto de los scripts
+  const childEnv = {
+    ...process.env,
+    USYNCRO_EMAIL: process.env.USYNCRO_EMAIL2,
+    USYNCRO_API_KEY: process.env.USYNCRO_API_KEY2,
+  };
+  const child = execFile(interpreter, [script], { env: childEnv });
 
   child.stdout?.on('data', (d: Buffer) => process.stdout.write(d));
   child.stderr?.on('data', (d: Buffer) => process.stderr.write(d));
@@ -33,7 +39,7 @@ function runJob(): void {
   });
 }
 
-// 10 PM hora México
-cron.schedule('0 22 * * *', runJob, { timezone: TZ });
+// 11:30 PM hora México
+cron.schedule('01 23 * * *', runJob, { timezone: TZ });
 
-console.log('[Scheduler-Usyncro] Iniciado. Próxima ejecución: 10:00 PM México');
+console.log('[Scheduler-Usyncro] Iniciado. Próxima ejecución: 11:30 PM México');

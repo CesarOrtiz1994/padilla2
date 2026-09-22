@@ -60,7 +60,7 @@ export type PlacesMap  = Partial<Record<string, string>>;
 export interface UsyncroRegistro {
   numero_referencia: string;
   id_cliente: number;
-  record_id: string;
+  record_id: string | null;
   actor_creator_id:        string | null;
   actor_buyer_id:          string | null;
   actor_supplier_id:       string | null;

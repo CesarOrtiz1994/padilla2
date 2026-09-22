@@ -25,6 +25,12 @@ export class UsyncroClient {
     return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.token}` };
   }
 
+  // La API no expone endpoint de logout; solo se descarta el token localmente
+  logout(): void {
+    this.token = null;
+    console.log('[Usyncro] Token descartado (logout local)');
+  }
+
   async createRecord(creatorReference: string): Promise<string> {
     const res = await fetch(
       `${usyncroConfig.baseUrl}/record-templates/${usyncroConfig.templateId}/create-record`,

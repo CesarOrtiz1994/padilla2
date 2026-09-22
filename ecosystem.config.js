@@ -5,6 +5,7 @@ const tsx = `${cwd}/node_modules/.bin/tsx`;
 const appsTsx = [
   { name: 'scheduler',        script: 'scheduler.ts',        interpreter: tsx, cwd, watch: false, autorestart: true },
   { name: 'scheduler-gastos', script: 'scheduler-gastos.ts', interpreter: tsx, cwd, watch: false, autorestart: true },
+  { name: 'scheduler-usyncro', script: 'scheduler-usyncro.ts', interpreter: tsx, cwd, watch: false, autorestart: true },
 ];
 
 // Opción B — compilado (requiere `npm run build` antes de iniciar)

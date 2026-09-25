@@ -35,6 +35,7 @@ function runJob(): void {
 
 runJob();
 
-// Cron cada 3 horas: descomentar cuando se requiera en producción
-// cron.schedule('0 0,3,6,9,12,15,18,21 * * *', runJob, { timezone: TZ });
-cron.schedule('45 13 * * *', runJob, { timezone: TZ });
+// 04:10 y 16:10 hora México
+cron.schedule('10 4,16 * * *', runJob, { timezone: TZ });
+
+console.log('[Scheduler] Iniciado. Ejecuciones diarias: 04:10 y 16:10 México');

@@ -39,7 +39,7 @@ function runJob(): void {
   });
 }
 
-// 11:30 PM hora México
-cron.schedule('01 23 * * *', runJob, { timezone: TZ });
+// 02:10 y 14:10 hora México
+cron.schedule('10 2,14 * * *', runJob, { timezone: TZ });
 
-console.log('[Scheduler-Usyncro] Iniciado. Próxima ejecución: 11:30 PM México');
+console.log('[Scheduler-Usyncro] Iniciado. Ejecuciones diarias: 02:10 y 14:10 México');

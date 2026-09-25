@@ -14,10 +14,11 @@
     "corregir-fechas": "node scripts/corregir_fechas_eventos.js",
     "test-eventos": "node test/test_eventos.js",
     "test-xml": "node test/test-xml-parser.js",
-    "cargar-historico-gastos": "node scripts/cargar_historico_gastos.js",
-    "rastrear-referencia": "node scripts/rastrear_referencia.js",
-    "forzar-referencia": "node scripts/forzar_referencia.js",
-    "reprocesar-por-fecha": "node scripts/reprocesar_por_fecha.js"
+    "cargar-historico-gastos": "tsx scripts/cargar_historico_gastos.js",
+    "rastrear-referencia": "tsx scripts/rastrear_referencia.js",
+    "forzar-referencia": "tsx scripts/forzar_referencia.js",
+    "reprocesar-por-fecha": "tsx scripts/reprocesar_por_fecha.js",
+    "diagnostico-sftp": "tsx scripts/diagnostico_errores_sftp.js"
   },
   "author": "",
   "license": "ISC",

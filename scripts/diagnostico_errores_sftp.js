@@ -88,7 +88,8 @@ async function diagnosticar() {
       try {
         // Intentar obtener info del archivo (sin descargarlo completo)
         const stat = await sftpClient.client.stat(remotePath);
-        console.log(`EXISTE (${stat.size} bytes, modificado: ${new Date(stat.modifyTime * 1000).toISOString().substring(0, 10)})`);
+        // stat.modifyTime ya viene en milisegundos, no multiplicar por 1000
+        console.log(`EXISTE (${stat.size} bytes, modificado: ${new Date(stat.modifyTime).toISOString().substring(0, 10)})`);
         resultados.push({ ref: numRef, archivo: fileName, estado: 'EXISTE', size: stat.size, path: remotePath });
       } catch (statErr) {
         // Si stat falla, intentar listar la carpeta para ver qué hay

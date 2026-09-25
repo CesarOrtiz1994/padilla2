@@ -34,7 +34,7 @@ function runJob(): void {
   });
 }
 
-// Programa: 1:30 AM todos los días
-cron.schedule('30 1 * * *', runJob, { timezone: TZ });
+// Programa: 00:10 y 12:10 todos los días
+cron.schedule('10 0,12 * * *', runJob, { timezone: TZ });
 
-console.log('[Scheduler-Gastos] Iniciado. Próxima ejecución: 1:30 AM');
+console.log('[Scheduler-Gastos] Iniciado. Ejecuciones diarias: 00:10 y 12:10');

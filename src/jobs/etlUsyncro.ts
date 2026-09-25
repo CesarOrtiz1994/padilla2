@@ -333,6 +333,7 @@ export async function runEtlUsyncro(soloReferencias?: string[]): Promise<void> {
         }
 
       } catch (e) {
+        errores++;
         console.error(`[ETL-Usyncro] Error en ${numRef}:`, (e as Error).message);
       }
     }

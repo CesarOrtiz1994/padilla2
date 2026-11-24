@@ -165,7 +165,7 @@ export async function runEtlUsyncro(soloReferencias?: string[]): Promise<void> {
             try {
               await client.updateActor(recordIdActivo, actorId, {
                 name: clienteConf.importador,
-                collaborators: [{ email: clienteConf.email, name: clienteConf.nombre, locale: 'es-MX' }],
+                collaborators: clienteConf.colaboradores.map(c => ({ email: c.email, name: c.nombre, locale: 'es-MX' })),
               });
               await marcarCampoOk(my, numRef, campoSync);
             } catch (e) {

@@ -101,8 +101,9 @@ if (!numRef) {
     console.log(`    clearance_date     : ${ref.clearance_date} (raw DB)`);
     console.log('\n    ── Cliente (integracion.ts) ─────────────────────');
     console.log(`    importador : ${clienteConf.importador}`);
-    console.log(`    nombre     : ${clienteConf.nombre}`);
-    console.log(`    email      : ${clienteConf.email}`);
+    for (const c of clienteConf.colaboradores) {
+      console.log(`    colaborador: ${c.nombre} <${c.email}>`);
+    }
 
     console.log('\n[3] Login en Usyncro...');
     const client = new UsyncroClient();
@@ -160,7 +161,7 @@ if (!numRef) {
         try {
           await client.updateActor(registro.record_id, actorId, {
             name: clienteConf.importador,
-            collaborators: [{ email: clienteConf.email, name: clienteConf.nombre, locale: 'es-MX' }],
+            collaborators: clienteConf.colaboradores.map(c => ({ email: c.email, name: c.nombre, locale: 'es-MX' })),
           });
           await marcarCampoOk(my, numRef, `${actorKey}.datos_cliente`);
           console.log('    ✔ Actualizado');
